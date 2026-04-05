@@ -1,0 +1,5 @@
+// CoinGecko API key configuration
+// 1. Copy this file to CoinGecko.xcconfig (gitignored — never commit the real file)
+// 2. Replace <placeholder> with your actual Demo API key
+// Obtain a free key at: https://www.coingecko.com/en/developers/dashboard
+COINGECKO_API_KEY = <placeholder>
