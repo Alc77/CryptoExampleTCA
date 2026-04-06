@@ -10,7 +10,7 @@ struct HomeFeature {
         var statistics: [StatisticModel] = []
         var isLoading = false
         var hasAppeared = false
-        var error: CoinGeckoError? = nil
+        var error: CoinGeckoError?
     }
 
     enum Action {
