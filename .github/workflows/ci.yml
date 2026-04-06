@@ -42,6 +42,7 @@ jobs:
             -scheme CryptoExampleTCA \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' \
             -resultBundlePath TestResults.xcresult \
+            -skipMacroValidation \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty --color && exit ${PIPESTATUS[0]}
