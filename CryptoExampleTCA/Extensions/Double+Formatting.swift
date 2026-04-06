@@ -11,6 +11,7 @@ extension Double {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = .current
+        formatter.currencyCode = "USD"
 
         let absValue = abs(self)
         if absValue >= 1.0 {
@@ -33,6 +34,7 @@ extension Double {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = .current
+        formatter.currencyCode = "USD"
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
         return formatter.string(from: NSNumber(value: self)) ?? "–"
