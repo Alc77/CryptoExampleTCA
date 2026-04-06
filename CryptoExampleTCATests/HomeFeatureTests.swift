@@ -61,9 +61,7 @@ final class HomeFeatureTests: XCTestCase {
             $0.error = nil
         }
 
-        await store.receive(\.coinsFetched.success) {
-            $0.coins = []
-        }
+        await store.receive(\.coinsFetched.success)
 
         await store.receive(\.marketDataFetched.success) {
             $0.statistics = mockMarketData.toStatistics()
