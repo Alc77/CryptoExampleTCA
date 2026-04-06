@@ -1,0 +1,41 @@
+workflows:
+  ios-test:
+    name: Integration Tests
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      xcode: 16.3
+      vars:
+        COINGECKO_API_KEY: CI_PLACEHOLDER
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Create API key config
+        script: echo "COINGECKO_API_KEY = $COINGECKO_API_KEY" > CoinGecko.xcconfig
+
+      - name: Resolve SPM dependencies
+        script: xcodebuild -resolvePackageDependencies -scheme CryptoExampleTCA -project CryptoExampleTCA.xcodeproj
+
+      - name: Build for testing
+        script: |
+          xcodebuild build-for-testing \
+            -project CryptoExampleTCA.xcodeproj \
+            -scheme CryptoExampleTCA \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Run tests
+        script: |
+          xcodebuild test-without-building \
+            -project CryptoExampleTCA.xcodeproj \
+            -scheme CryptoExampleTCA \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' \
+            -resultBundlePath build/TestResults.xcresult
+    artifacts:
+      - build/TestResults.xcresult
