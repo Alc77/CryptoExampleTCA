@@ -101,7 +101,11 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            if store.isLoading && store.coins.isEmpty {
+            if let error = store.error, !store.isLoading {
+                ErrorView(error: error) {
+                    store.send(.reloadButtonTapped)
+                }
+            } else if store.isLoading && store.coins.isEmpty {
                 ProgressView()
             } else {
                 VStack(spacing: 0) {
