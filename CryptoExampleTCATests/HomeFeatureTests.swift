@@ -98,6 +98,8 @@ final class HomeFeatureTests: XCTestCase {
             $0.statistics = mockMarketData.toStatistics()
             $0.isLoading = false
         }
+        // Partial failure preserved: coins-failure error is NOT wiped by market success.
+        XCTAssertEqual(store.state.error, .networkUnavailable)
     }
 
     // MARK: - onAppear → marketDataFetched failure
@@ -218,6 +220,8 @@ final class HomeFeatureTests: XCTestCase {
             $0.statistics = Self.mockMarketData.toStatistics()
             $0.isLoading = false
         }
+        // Partial failure preserved: coins-failure error is NOT wiped by market success.
+        XCTAssertEqual(store.state.error, .networkUnavailable)
     }
 
     @MainActor
@@ -256,6 +260,144 @@ final class HomeFeatureTests: XCTestCase {
 
         await store.send(.onAppear)
         // No effects, no state changes — guard returns .none
+    }
+
+    // MARK: - Story 2.3: Error state + retry
+
+    @MainActor
+    func testOnAppearCoinsFailureSurfacesErrorAndClearsLoading() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.coinGeckoClient.fetchCoins = { throw CoinGeckoError.networkUnavailable }
+            $0.coinGeckoClient.fetchMarketData = { Self.mockMarketData }
+        }
+
+        await store.send(.onAppear) {
+            $0.hasAppeared = true
+            $0.isLoading = true
+        }
+
+        await store.receive(\.coinsFetched.failure) {
+            $0.error = .networkUnavailable
+        }
+        // Partial failure: market success must NOT clear the coins-failure error.
+        await store.receive(\.marketDataFetched.success) {
+            $0.statistics = Self.mockMarketData.toStatistics()
+            $0.isLoading = false
+        }
+        XCTAssertEqual(store.state.error, .networkUnavailable)
+    }
+
+    @MainActor
+    func testReloadAfterErrorClearsErrorAndRefetches() async {
+        var initial = HomeFeature.State()
+        initial.error = .networkUnavailable
+        initial.hasAppeared = true
+
+        let store = TestStore(initialState: initial) {
+            HomeFeature()
+        } withDependencies: {
+            $0.hapticClient.impact = { }
+            $0.coinGeckoClient.fetchCoins = { Self.mockCoins }
+            $0.coinGeckoClient.fetchMarketData = { Self.mockMarketData }
+        }
+
+        await store.send(.reloadButtonTapped) {
+            $0.isLoading = true
+            $0.error = nil
+        }
+
+        await store.receive(\.coinsFetched.success) {
+            $0.coins = Self.mockCoins
+        }
+        await store.receive(\.marketDataFetched.success) {
+            $0.statistics = Self.mockMarketData.toStatistics()
+            $0.isLoading = false
+        }
+    }
+
+    @MainActor
+    func testOnAppearMarketDataFailureSetsErrorAndClearsLoading() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.coinGeckoClient.fetchCoins = { Self.mockCoins }
+            $0.coinGeckoClient.fetchMarketData = { throw CoinGeckoError.rateLimited }
+        }
+
+        await store.send(.onAppear) {
+            $0.hasAppeared = true
+            $0.isLoading = true
+        }
+
+        await store.receive(\.coinsFetched.success) {
+            $0.coins = Self.mockCoins
+        }
+        await store.receive(\.marketDataFetched.failure) {
+            $0.error = .rateLimited
+            $0.isLoading = false
+        }
+    }
+
+    @MainActor
+    func testOnAppearBothFetchesFailSurfacesLastError() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.coinGeckoClient.fetchCoins = { throw CoinGeckoError.networkUnavailable }
+            $0.coinGeckoClient.fetchMarketData = { throw CoinGeckoError.rateLimited }
+        }
+
+        await store.send(.onAppear) {
+            $0.hasAppeared = true
+            $0.isLoading = true
+        }
+
+        await store.receive(\.coinsFetched.failure) {
+            $0.error = .networkUnavailable
+        }
+        // Last-write-wins: marketData failure overwrites the coins-failure error.
+        await store.receive(\.marketDataFetched.failure) {
+            $0.error = .rateLimited
+            $0.isLoading = false
+        }
+    }
+
+    @MainActor
+    func testCoinsFetchedSuccessPreservesExistingError() async {
+        // Success handlers MUST NOT clear state.error — clearing is the job of
+        // `reloadButtonTapped` / `onAppear` at the start of a retry cycle.
+        // Clearing on partial success would silently hide a real failure.
+        var initial = HomeFeature.State()
+        initial.error = .networkUnavailable
+        initial.isLoading = true
+
+        let store = TestStore(initialState: initial) {
+            HomeFeature()
+        }
+
+        await store.send(.coinsFetched(.success(Self.mockCoins))) {
+            $0.coins = Self.mockCoins
+        }
+        XCTAssertEqual(store.state.error, .networkUnavailable)
+    }
+
+    @MainActor
+    func testMarketDataFetchedSuccessPreservesExistingError() async {
+        var initial = HomeFeature.State()
+        initial.error = .networkUnavailable
+        initial.isLoading = true
+
+        let store = TestStore(initialState: initial) {
+            HomeFeature()
+        }
+
+        await store.send(.marketDataFetched(.success(Self.mockMarketData))) {
+            $0.statistics = Self.mockMarketData.toStatistics()
+            $0.isLoading = false
+        }
+        XCTAssertEqual(store.state.error, .networkUnavailable)
     }
 
     // MARK: - Destination tests still pass (no regression)

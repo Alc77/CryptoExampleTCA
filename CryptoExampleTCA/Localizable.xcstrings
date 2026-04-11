@@ -4,6 +4,72 @@
     "%lld" : {
 
     },
+    "error.coingecko.badResponse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server returned an error (code %lld). Please try again."
+          }
+        }
+      }
+    },
+    "error.coingecko.decodingFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Received unexpected data from the server. Please try again."
+          }
+        }
+      }
+    },
+    "error.coingecko.networkUnavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to connect. Check your internet connection and try again."
+          }
+        }
+      }
+    },
+    "error.coingecko.rateLimited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've made too many requests. Please wait a moment and try again."
+          }
+        }
+      }
+    },
+    "error.retry.button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        }
+      }
+    },
+    "error.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something went wrong"
+          }
+        }
+      }
+    },
     "home.title" : {
       "localizations" : {
         "uk" : {
