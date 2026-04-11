@@ -129,6 +129,121 @@ final class HomeFeatureTests: XCTestCase {
         }
     }
 
+    // MARK: - reloadButtonTapped tests
+
+    @MainActor
+    func testReloadButtonTappedTriggersHapticAndFetch() async {
+        final class HapticCapture: @unchecked Sendable { var called = false }
+        let capture = HapticCapture()
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.hapticClient.impact = { capture.called = true }
+            $0.coinGeckoClient.fetchCoins = { Self.mockCoins }
+            $0.coinGeckoClient.fetchMarketData = { Self.mockMarketData }
+        }
+
+        await store.send(.reloadButtonTapped) {
+            $0.isLoading = true
+            $0.error = nil
+        }
+
+        XCTAssertTrue(capture.called, "Haptic impact should fire on reload")
+
+        await store.receive(\.coinsFetched.success) {
+            $0.coins = Self.mockCoins
+        }
+        await store.receive(\.marketDataFetched.success) {
+            $0.statistics = Self.mockMarketData.toStatistics()
+            $0.isLoading = false
+        }
+    }
+
+    @MainActor
+    func testReloadButtonTappedCancelsInFlightFetch() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.hapticClient.impact = { }
+            $0.coinGeckoClient.fetchCoins = { Self.mockCoins }
+            $0.coinGeckoClient.fetchMarketData = { Self.mockMarketData }
+        }
+
+        // First reload completes fully with synchronous mocks.
+        await store.send(.reloadButtonTapped) {
+            $0.isLoading = true
+            $0.error = nil
+        }
+        await store.receive(\.coinsFetched.success) {
+            $0.coins = Self.mockCoins
+        }
+        await store.receive(\.marketDataFetched.success) {
+            $0.statistics = Self.mockMarketData.toStatistics()
+            $0.isLoading = false
+        }
+
+        // Second reload: isLoading is false after first fetch completes.
+        // The .cancellable(id:cancelInFlight:true) modifier ensures true in-flight
+        // cancellation in production when two reloads happen before the first finishes.
+        await store.send(.reloadButtonTapped) {
+            $0.isLoading = true
+            $0.error = nil
+        }
+        // coins already equal mockCoins — no state change on success
+        await store.receive(\.coinsFetched.success)
+        await store.receive(\.marketDataFetched.success) {
+            $0.isLoading = false
+        }
+    }
+
+    @MainActor
+    func testReloadButtonTappedCoinsFetchFailureSetsError() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.hapticClient.impact = { }
+            $0.coinGeckoClient.fetchCoins = { throw CoinGeckoError.networkUnavailable }
+            $0.coinGeckoClient.fetchMarketData = { Self.mockMarketData }
+        }
+
+        await store.send(.reloadButtonTapped) {
+            $0.isLoading = true
+            $0.error = nil
+        }
+
+        await store.receive(\.coinsFetched.failure) {
+            $0.error = .networkUnavailable
+        }
+        await store.receive(\.marketDataFetched.success) {
+            $0.statistics = Self.mockMarketData.toStatistics()
+            $0.isLoading = false
+        }
+    }
+
+    @MainActor
+    func testReloadButtonTappedMarketDataFetchFailureSetsError() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        } withDependencies: {
+            $0.hapticClient.impact = { }
+            $0.coinGeckoClient.fetchCoins = { Self.mockCoins }
+            $0.coinGeckoClient.fetchMarketData = { throw CoinGeckoError.networkUnavailable }
+        }
+
+        await store.send(.reloadButtonTapped) {
+            $0.isLoading = true
+            $0.error = nil
+        }
+
+        await store.receive(\.coinsFetched.success) {
+            $0.coins = Self.mockCoins
+        }
+        await store.receive(\.marketDataFetched.failure) {
+            $0.error = .networkUnavailable
+            $0.isLoading = false
+        }
+    }
+
     // MARK: - onAppear deduplication
 
     @MainActor

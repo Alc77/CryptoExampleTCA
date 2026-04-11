@@ -16,11 +16,15 @@ struct HomeFeature {
     enum Action {
         case destination(PresentationAction<Destination.Action>)
         case onAppear
+        case reloadButtonTapped
         case coinsFetched(TaskResult<[CoinModel]>)
         case marketDataFetched(TaskResult<MarketDataModel>)
     }
 
+    private enum FetchID { case fetch }
+
     @Dependency(\.coinGeckoClient) var coinGeckoClient
+    @Dependency(\.hapticClient) var hapticClient
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -41,6 +45,21 @@ struct HomeFeature {
                         TaskResult { try await coinGeckoClient.fetchMarketData() }
                     ))
                 }
+                .cancellable(id: FetchID.fetch, cancelInFlight: true)
+
+            case .reloadButtonTapped:
+                hapticClient.impact()
+                state.isLoading = true
+                state.error = nil
+                return .run { send in
+                    await send(.coinsFetched(
+                        TaskResult { try await coinGeckoClient.fetchCoins() }
+                    ))
+                    await send(.marketDataFetched(
+                        TaskResult { try await coinGeckoClient.fetchMarketData() }
+                    ))
+                }
+                .cancellable(id: FetchID.fetch, cancelInFlight: true)
 
             case let .coinsFetched(.success(coins)):
                 state.coins = coins
@@ -105,6 +124,16 @@ struct HomeView: View {
             }
         }
         .navigationTitle(String(localized: "home.title"))
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    store.send(.reloadButtonTapped)
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(store.isLoading)
+            }
+        }
         .onAppear {
             store.send(.onAppear)
         }
