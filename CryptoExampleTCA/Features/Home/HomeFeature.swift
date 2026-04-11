@@ -11,6 +11,17 @@ struct HomeFeature {
         var isLoading = false
         var hasAppeared = false
         var error: CoinGeckoError?
+        var searchText: String = ""
+        var searchQuery: String = ""
+
+        var filteredCoins: [CoinModel] {
+            let query = searchQuery.trimmingCharacters(in: .whitespaces)
+            guard !query.isEmpty else { return coins }
+            return coins.filter { coin in
+                coin.name.localizedCaseInsensitiveContains(query)
+                    || coin.symbol.localizedCaseInsensitiveContains(query)
+            }
+        }
     }
 
     enum Action {
@@ -19,12 +30,16 @@ struct HomeFeature {
         case reloadButtonTapped
         case coinsFetched(TaskResult<[CoinModel]>)
         case marketDataFetched(TaskResult<MarketDataModel>)
+        case searchTextChanged(String)
+        case searchCommitted
     }
 
     private enum FetchID { case fetch }
+    private enum SearchDebounceID { case debounce }
 
     @Dependency(\.coinGeckoClient) var coinGeckoClient
     @Dependency(\.hapticClient) var hapticClient
+    @Dependency(\.continuousClock) var clock
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -78,6 +93,19 @@ struct HomeFeature {
                 state.error = error as? CoinGeckoError ?? .networkUnavailable
                 state.isLoading = false
                 return .none
+
+            case let .searchTextChanged(text):
+                guard text != state.searchText else { return .none }
+                state.searchText = text
+                return .run { send in
+                    try await clock.sleep(for: .seconds(0.5))
+                    await send(.searchCommitted)
+                }
+                .cancellable(id: SearchDebounceID.debounce, cancelInFlight: true)
+
+            case .searchCommitted:
+                state.searchQuery = state.searchText
+                return .none
             }
         }
         .ifLet(\.$destination, action: \.destination)
@@ -97,7 +125,7 @@ extension HomeFeature.Destination.State: Equatable {
 // MARK: - View
 
 struct HomeView: View {
-    let store: StoreOf<HomeFeature>
+    @Bindable var store: StoreOf<HomeFeature>
 
     var body: some View {
         ZStack {
@@ -119,7 +147,7 @@ struct HomeView: View {
                     }
 
                     // Coin list
-                    List(store.coins) { coin in
+                    List(store.filteredCoins) { coin in
                         CoinRowView(coin: coin)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     }
@@ -128,6 +156,10 @@ struct HomeView: View {
             }
         }
         .navigationTitle(String(localized: "home.title"))
+        .searchable(
+            text: $store.searchText.sending(\.searchTextChanged),
+            prompt: Text("home.search.prompt")
+        )
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
