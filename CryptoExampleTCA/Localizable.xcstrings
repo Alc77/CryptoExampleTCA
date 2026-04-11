@@ -70,6 +70,17 @@
         }
       }
     },
+    "home.search.prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search coin name or symbol"
+          }
+        }
+      }
+    },
     "home.title" : {
       "localizations" : {
         "uk" : {
