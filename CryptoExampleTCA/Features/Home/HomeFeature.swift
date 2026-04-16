@@ -3,6 +3,13 @@ import SwiftUI
 
 @Reducer
 struct HomeFeature {
+
+    enum SortOption: Equatable {
+        case rank
+        case price
+        case holdings
+    }
+
     @ObservableState
     struct State: Equatable {
         @Presents var destination: Destination.State?
@@ -13,14 +20,30 @@ struct HomeFeature {
         var error: CoinGeckoError?
         var searchText: String = ""
         var searchQuery: String = ""
+        var sortOption: SortOption = .rank
+        var sortAscending: Bool = true
 
         var filteredCoins: [CoinModel] {
             let query = searchQuery.trimmingCharacters(in: .whitespaces)
-            guard !query.isEmpty else { return coins }
-            return coins.filter { coin in
-                coin.name.localizedCaseInsensitiveContains(query)
-                    || coin.symbol.localizedCaseInsensitiveContains(query)
+            let filtered: [CoinModel]
+            if query.isEmpty {
+                filtered = coins
+            } else {
+                filtered = coins.filter { coin in
+                    coin.name.localizedCaseInsensitiveContains(query)
+                        || coin.symbol.localizedCaseInsensitiveContains(query)
+                }
             }
+            let result: [CoinModel]
+            switch sortOption {
+            case .rank:
+                result = filtered.sorted { ($0.marketCapRank ?? Int.max) < ($1.marketCapRank ?? Int.max) }
+            case .price:
+                result = filtered.sorted { ($0.currentPrice ?? 0) < ($1.currentPrice ?? 0) }
+            case .holdings:
+                result = filtered.sorted { $0.currentHoldingsValue < $1.currentHoldingsValue }
+            }
+            return sortAscending ? result : result.reversed()
         }
     }
 
@@ -32,6 +55,7 @@ struct HomeFeature {
         case marketDataFetched(TaskResult<MarketDataModel>)
         case searchTextChanged(String)
         case searchCommitted
+        case sortOptionSelected(SortOption)
     }
 
     private enum FetchID { case fetch }
@@ -106,6 +130,15 @@ struct HomeFeature {
             case .searchCommitted:
                 state.searchQuery = state.searchText
                 return .none
+
+            case let .sortOptionSelected(option):
+                if state.sortOption == option {
+                    state.sortAscending.toggle()
+                } else {
+                    state.sortOption = option
+                    state.sortAscending = option == .rank
+                }
+                return .none
             }
         }
         .ifLet(\.$destination, action: \.destination)
@@ -146,6 +179,17 @@ struct HomeView: View {
                         }
                     }
 
+                    // Sort header row
+                    HStack {
+                        sortColumnButton(.rank, label: "home.sort.rank")
+                        Spacer()
+                        sortColumnButton(.price, label: "home.sort.price")
+                        Spacer()
+                        sortColumnButton(.holdings, label: "home.sort.holdings")
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
                     // Coin list
                     List(store.filteredCoins) { coin in
                         CoinRowView(coin: coin)
@@ -172,6 +216,19 @@ struct HomeView: View {
         }
         .onAppear {
             store.send(.onAppear)
+        }
+    }
+
+    private func sortColumnButton(_ option: HomeFeature.SortOption, label: String) -> some View {
+        Button {
+            store.send(.sortOptionSelected(option))
+        } label: {
+            HStack(spacing: 4) {
+                Text(LocalizedStringKey(label))
+                if store.sortOption == option {
+                    Image(systemName: store.sortAscending ? "chevron.up" : "chevron.down")
+                }
+            }
         }
     }
 }
