@@ -14,8 +14,17 @@ extension HTTPClient {
             if !apiKey.isEmpty {
                 request.setValue(apiKey, forHTTPHeaderField: "x-cg-demo-api-key")
             }
+            #if DEBUG
+            print("⚡ REQUEST:\n\(request.curlString)")
+            #endif
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
+                #if DEBUG
+                if let httpResponse = response as? HTTPURLResponse {
+                    let body = data.prettyJSON ?? String(data: data, encoding: .utf8) ?? "<binary>"
+                    print("✅ RESPONSE [\(httpResponse.statusCode)]:\n\(body)")
+                }
+                #endif
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw CoinGeckoError.networkUnavailable
                 }
@@ -53,3 +62,34 @@ extension DependencyValues {
         set { self[HTTPClient.self] = newValue }
     }
 }
+
+// MARK: - Debug Logging Helpers
+
+#if DEBUG
+extension URLRequest {
+    var curlString: String {
+        var parts = ["curl"]
+        parts.append("-X \(httpMethod ?? "GET")")
+        if let headers = allHTTPHeaderFields {
+            for (key, value) in headers.sorted(by: { $0.key < $1.key }) {
+                parts.append("-H '\(key): \(value)'")
+            }
+        }
+        if let body = httpBody, let bodyString = String(data: body, encoding: .utf8) {
+            parts.append("-d '\(bodyString)'")
+        }
+        parts.append("'\(url?.absoluteString ?? "")'")
+        return parts.joined(separator: " \\\n  ")
+    }
+}
+
+extension Data {
+    var prettyJSON: String? {
+        guard let json = try? JSONSerialization.jsonObject(with: self),
+              let pretty = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
+              let string = String(data: pretty, encoding: .utf8)
+        else { return nil }
+        return string
+    }
+}
+#endif

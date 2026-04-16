@@ -116,6 +116,12 @@
     },
     "home.title" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
