@@ -59,6 +59,10 @@ struct CoinModel: Codable, Equatable, Identifiable {
         // currentHoldings intentionally excluded — portfolio overlay, not from API
     }
 
+    var currentHoldingsValue: Double {
+        (currentHoldings ?? 0) * (currentPrice ?? 0)
+    }
+
     struct SparklineIn7D: Codable, Equatable {
         let price: [Double]
     }

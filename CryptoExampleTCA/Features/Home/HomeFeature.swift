@@ -3,6 +3,18 @@ import SwiftUI
 
 @Reducer
 struct HomeFeature {
+
+    enum SortOption: Equatable {
+        case rank
+        case price
+        case holdings
+    }
+
+    enum Tab: Equatable, Hashable {
+        case livePrices
+        case portfolio
+    }
+
     @ObservableState
     struct State: Equatable {
         @Presents var destination: Destination.State?
@@ -13,14 +25,56 @@ struct HomeFeature {
         var error: CoinGeckoError?
         var searchText: String = ""
         var searchQuery: String = ""
+        var sortOption: SortOption = .rank
+        var sortAscending: Bool = true
+        var selectedTab: Tab = .livePrices
+        @Shared(.portfolioItems) var portfolioItems: [PortfolioItem] = []
 
         var filteredCoins: [CoinModel] {
-            let query = searchQuery.trimmingCharacters(in: .whitespaces)
-            guard !query.isEmpty else { return coins }
-            return coins.filter { coin in
-                coin.name.localizedCaseInsensitiveContains(query)
-                    || coin.symbol.localizedCaseInsensitiveContains(query)
+            // Step 1: Tab filter + holdings overlay
+            let holdingsMap = Dictionary(
+                uniqueKeysWithValues: portfolioItems.map { ($0.coinID, $0.amount) }
+            )
+            let tabFiltered: [CoinModel]
+            switch selectedTab {
+            case .livePrices:
+                tabFiltered = coins.map { coin in
+                    var updated = coin
+                    updated.currentHoldings = holdingsMap[coin.id]
+                    return updated
+                }
+            case .portfolio:
+                tabFiltered = coins.compactMap { coin in
+                    guard let amount = holdingsMap[coin.id], amount > 0 else { return nil }
+                    var updated = coin
+                    updated.currentHoldings = amount
+                    return updated
+                }
             }
+
+            // Step 2: Search filter
+            let query = searchQuery.trimmingCharacters(in: .whitespaces)
+            let filtered: [CoinModel]
+            if query.isEmpty {
+                filtered = tabFiltered
+            } else {
+                filtered = tabFiltered.filter { coin in
+                    coin.name.localizedCaseInsensitiveContains(query)
+                        || coin.symbol.localizedCaseInsensitiveContains(query)
+                }
+            }
+
+            // Step 3: Sort
+            let result: [CoinModel]
+            switch sortOption {
+            case .rank:
+                result = filtered.sorted { ($0.marketCapRank ?? Int.max) < ($1.marketCapRank ?? Int.max) }
+            case .price:
+                result = filtered.sorted { ($0.currentPrice ?? 0) < ($1.currentPrice ?? 0) }
+            case .holdings:
+                result = filtered.sorted { $0.currentHoldingsValue < $1.currentHoldingsValue }
+            }
+            return sortAscending ? result : result.reversed()
         }
     }
 
@@ -32,6 +86,8 @@ struct HomeFeature {
         case marketDataFetched(TaskResult<MarketDataModel>)
         case searchTextChanged(String)
         case searchCommitted
+        case sortOptionSelected(SortOption)
+        case tabSelected(Tab)
     }
 
     private enum FetchID { case fetch }
@@ -106,6 +162,19 @@ struct HomeFeature {
             case .searchCommitted:
                 state.searchQuery = state.searchText
                 return .none
+
+            case let .sortOptionSelected(option):
+                if state.sortOption == option {
+                    state.sortAscending.toggle()
+                } else {
+                    state.sortOption = option
+                    state.sortAscending = option == .rank
+                }
+                return .none
+
+            case let .tabSelected(tab):
+                state.selectedTab = tab
+                return .none
             }
         }
         .ifLet(\.$destination, action: \.destination)
@@ -137,6 +206,16 @@ struct HomeView: View {
                 ProgressView()
             } else {
                 VStack(spacing: 0) {
+                    // Tab selector
+                    Picker("Tab", selection: $store.selectedTab.sending(\.tabSelected)) {
+                        Text("home.tab.livePrices").tag(HomeFeature.Tab.livePrices)
+                        Text("home.tab.portfolio").tag(HomeFeature.Tab.portfolio)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
                     // Statistics row
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 0) {
@@ -146,12 +225,30 @@ struct HomeView: View {
                         }
                     }
 
-                    // Coin list
-                    List(store.filteredCoins) { coin in
-                        CoinRowView(coin: coin)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    // Sort header row
+                    HStack {
+                        sortColumnButton(.rank, label: "home.sort.rank")
+                        Spacer()
+                        sortColumnButton(.price, label: "home.sort.price")
+                        Spacer()
+                        sortColumnButton(.holdings, label: "home.sort.holdings")
                     }
-                    .listStyle(.plain)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                    // Coin list or empty portfolio state
+                    if store.selectedTab == .portfolio && store.filteredCoins.isEmpty && !store.isLoading {
+                        Spacer()
+                        Text("home.portfolio.empty")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    } else {
+                        List(store.filteredCoins) { coin in
+                            CoinRowView(coin: coin)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        }
+                        .listStyle(.plain)
+                    }
                 }
             }
         }
@@ -172,6 +269,19 @@ struct HomeView: View {
         }
         .onAppear {
             store.send(.onAppear)
+        }
+    }
+
+    private func sortColumnButton(_ option: HomeFeature.SortOption, label: String) -> some View {
+        Button {
+            store.send(.sortOptionSelected(option))
+        } label: {
+            HStack(spacing: 4) {
+                Text(LocalizedStringKey(label))
+                if store.sortOption == option {
+                    Image(systemName: store.sortAscending ? "chevron.up" : "chevron.down")
+                }
+            }
         }
     }
 }

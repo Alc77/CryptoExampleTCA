@@ -70,6 +70,17 @@
         }
       }
     },
+    "home.portfolio.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No coins in your portfolio"
+          }
+        }
+      }
+    },
     "home.search.prompt" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -81,8 +92,69 @@
         }
       }
     },
+    "home.sort.holdings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holdings"
+          }
+        }
+      }
+    },
+    "home.sort.price" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Price"
+          }
+        }
+      }
+    },
+    "home.sort.rank" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rank"
+          }
+        }
+      }
+    },
+    "home.tab.livePrices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live Prices"
+          }
+        }
+      }
+    },
+    "home.tab.portfolio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portfolio"
+          }
+        }
+      }
+    },
     "home.title" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
@@ -141,6 +213,9 @@
           }
         }
       }
+    },
+    "Tab" : {
+
     }
   },
   "version" : "1.0"
