@@ -70,6 +70,28 @@
         }
       }
     },
+    "home.portfolio.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No coins in your portfolio"
+          }
+        }
+      }
+    },
+    "home.search.prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search coin name or symbol"
+          }
+        }
+      }
+    },
     "home.sort.holdings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -103,13 +125,24 @@
         }
       }
     },
-    "home.search.prompt" : {
+    "home.tab.livePrices" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Search coin name or symbol"
+            "value" : "Live Prices"
+          }
+        }
+      }
+    },
+    "home.tab.portfolio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portfolio"
           }
         }
       }
@@ -180,6 +213,9 @@
           }
         }
       }
+    },
+    "Tab" : {
+
     }
   },
   "version" : "1.0"

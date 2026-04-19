@@ -76,16 +76,20 @@ final class HomeFeatureSortTests: XCTestCase {
 
     @MainActor
     func testSortByHoldingsDescending() async {
-        var bitcoinWithHoldings = HomeFeatureTests.mockCoins[0]  // Bitcoin $65000
-        bitcoinWithHoldings.currentHoldings = 0.5  // value = 32500
-        var ethWithHoldings = HomeFeatureTests.mockCoins[1]  // Ethereum $3500
-        ethWithHoldings.currentHoldings = 2.0  // value = 7000
-        // Cardano: currentHoldings = nil → value = 0
-
+        // Holdings overlay now comes from @Shared portfolioItems, not CoinModel.currentHoldings
+        // Bitcoin: 0.5 × $65000 = $32500, Ethereum: 2.0 × $3500 = $7000, Cardano: nil → $0
         var initial = HomeFeature.State()
-        initial.coins = [HomeFeatureTests.mockCoins[2], ethWithHoldings, bitcoinWithHoldings]
+        initial.coins = [HomeFeatureTests.mockCoins[2], HomeFeatureTests.mockCoins[1], HomeFeatureTests.mockCoins[0]]
+        initial.$portfolioItems.withLock {
+            $0 = [
+                PortfolioItem(coinID: "bitcoin", amount: 0.5),
+                PortfolioItem(coinID: "ethereum", amount: 2.0)
+            ]
+        }
         let store = TestStore(initialState: initial) {
             HomeFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         await store.send(.sortOptionSelected(.holdings)) {
@@ -99,17 +103,22 @@ final class HomeFeatureSortTests: XCTestCase {
 
     @MainActor
     func testSortByHoldingsAscending() async {
-        var bitcoinWithHoldings = HomeFeatureTests.mockCoins[0]
-        bitcoinWithHoldings.currentHoldings = 0.5  // value = 32500
-        var ethWithHoldings = HomeFeatureTests.mockCoins[1]
-        ethWithHoldings.currentHoldings = 2.0  // value = 7000
-
+        // Holdings overlay now comes from @Shared portfolioItems
+        // Bitcoin: 0.5 × $65000 = $32500, Ethereum: 2.0 × $3500 = $7000, Cardano: nil → $0
         var initial = HomeFeature.State()
-        initial.coins = [bitcoinWithHoldings, ethWithHoldings, HomeFeatureTests.mockCoins[2]]
+        initial.coins = [HomeFeatureTests.mockCoins[0], HomeFeatureTests.mockCoins[1], HomeFeatureTests.mockCoins[2]]
         initial.sortOption = .holdings
         initial.sortAscending = false
+        initial.$portfolioItems.withLock {
+            $0 = [
+                PortfolioItem(coinID: "bitcoin", amount: 0.5),
+                PortfolioItem(coinID: "ethereum", amount: 2.0)
+            ]
+        }
         let store = TestStore(initialState: initial) {
             HomeFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         // From holdings descending, toggle to holdings ascending

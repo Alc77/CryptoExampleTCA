@@ -10,6 +10,11 @@ struct HomeFeature {
         case holdings
     }
 
+    enum Tab: Equatable, Hashable {
+        case livePrices
+        case portfolio
+    }
+
     @ObservableState
     struct State: Equatable {
         @Presents var destination: Destination.State?
@@ -22,18 +27,44 @@ struct HomeFeature {
         var searchQuery: String = ""
         var sortOption: SortOption = .rank
         var sortAscending: Bool = true
+        var selectedTab: Tab = .livePrices
+        @Shared(.portfolioItems) var portfolioItems: [PortfolioItem] = []
 
         var filteredCoins: [CoinModel] {
+            // Step 1: Tab filter + holdings overlay
+            let holdingsMap = Dictionary(
+                uniqueKeysWithValues: portfolioItems.map { ($0.coinID, $0.amount) }
+            )
+            let tabFiltered: [CoinModel]
+            switch selectedTab {
+            case .livePrices:
+                tabFiltered = coins.map { coin in
+                    var updated = coin
+                    updated.currentHoldings = holdingsMap[coin.id]
+                    return updated
+                }
+            case .portfolio:
+                tabFiltered = coins.compactMap { coin in
+                    guard let amount = holdingsMap[coin.id], amount > 0 else { return nil }
+                    var updated = coin
+                    updated.currentHoldings = amount
+                    return updated
+                }
+            }
+
+            // Step 2: Search filter
             let query = searchQuery.trimmingCharacters(in: .whitespaces)
             let filtered: [CoinModel]
             if query.isEmpty {
-                filtered = coins
+                filtered = tabFiltered
             } else {
-                filtered = coins.filter { coin in
+                filtered = tabFiltered.filter { coin in
                     coin.name.localizedCaseInsensitiveContains(query)
                         || coin.symbol.localizedCaseInsensitiveContains(query)
                 }
             }
+
+            // Step 3: Sort
             let result: [CoinModel]
             switch sortOption {
             case .rank:
@@ -56,6 +87,7 @@ struct HomeFeature {
         case searchTextChanged(String)
         case searchCommitted
         case sortOptionSelected(SortOption)
+        case tabSelected(Tab)
     }
 
     private enum FetchID { case fetch }
@@ -139,6 +171,10 @@ struct HomeFeature {
                     state.sortAscending = option == .rank
                 }
                 return .none
+
+            case let .tabSelected(tab):
+                state.selectedTab = tab
+                return .none
             }
         }
         .ifLet(\.$destination, action: \.destination)
@@ -170,6 +206,16 @@ struct HomeView: View {
                 ProgressView()
             } else {
                 VStack(spacing: 0) {
+                    // Tab selector
+                    Picker("Tab", selection: $store.selectedTab.sending(\.tabSelected)) {
+                        Text("home.tab.livePrices").tag(HomeFeature.Tab.livePrices)
+                        Text("home.tab.portfolio").tag(HomeFeature.Tab.portfolio)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
                     // Statistics row
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 0) {
@@ -190,12 +236,19 @@ struct HomeView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 8)
 
-                    // Coin list
-                    List(store.filteredCoins) { coin in
-                        CoinRowView(coin: coin)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    // Coin list or empty portfolio state
+                    if store.selectedTab == .portfolio && store.filteredCoins.isEmpty && !store.isLoading {
+                        Spacer()
+                        Text("home.portfolio.empty")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    } else {
+                        List(store.filteredCoins) { coin in
+                            CoinRowView(coin: coin)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        }
+                        .listStyle(.plain)
                     }
-                    .listStyle(.plain)
                 }
             }
         }
