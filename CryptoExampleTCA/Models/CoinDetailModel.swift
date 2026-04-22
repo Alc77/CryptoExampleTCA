@@ -1,6 +1,6 @@
 import Foundation
 
-struct CoinDetailModel: Codable {
+struct CoinDetailModel: Codable, Equatable {
     let id: String
     let symbol: String
     let name: String
@@ -10,6 +10,7 @@ struct CoinDetailModel: Codable {
     let links: Links
     let image: CoinImage
     let marketCapRank: Int?
+    let genesisDate: String?
     let marketData: MarketData
 
     enum CodingKeys: String, CodingKey {
@@ -22,14 +23,15 @@ struct CoinDetailModel: Codable {
         case links
         case image
         case marketCapRank = "market_cap_rank"
+        case genesisDate = "genesis_date"
         case marketData = "market_data"
     }
 
-    struct Description: Codable {
+    struct Description: Codable, Equatable {
         let en: String?
     }
 
-    struct Links: Codable {
+    struct Links: Codable, Equatable {
         let homepage: [String]
         let subredditUrl: String?
 
@@ -39,13 +41,13 @@ struct CoinDetailModel: Codable {
         }
     }
 
-    struct CoinImage: Codable {
+    struct CoinImage: Codable, Equatable {
         let thumb: String
         let small: String
         let large: String
     }
 
-    struct MarketData: Codable {
+    struct MarketData: Codable, Equatable {
         let currentPrice: [String: Double]
         let marketCap: [String: Double]
         let totalVolume: [String: Double]
@@ -62,6 +64,9 @@ struct CoinDetailModel: Codable {
         let atl: [String: Double]
         let atlChangePercentage: [String: Double]
         let sparkline7D: CoinModel.SparklineIn7D?
+        let circulatingSupply: Double?
+        let totalSupply: Double?
+        let maxSupply: Double?
 
         enum CodingKeys: String, CodingKey {
             case currentPrice = "current_price"
@@ -80,6 +85,58 @@ struct CoinDetailModel: Codable {
             case atl
             case atlChangePercentage = "atl_change_percentage"
             case sparkline7D = "sparkline_7d"
+            case circulatingSupply = "circulating_supply"
+            case totalSupply = "total_supply"
+            case maxSupply = "max_supply"
         }
+    }
+}
+
+extension CoinDetailModel {
+    func toOverviewStatistics() -> [StatisticModel] {
+        let price = StatisticModel(
+            title: String(localized: "detail.stats.price"),
+            value: marketData.currentPrice["usd"].map { $0.asCurrencyWith6Decimals() } ?? "—",
+            percentageChange: marketData.priceChangePercentage24H
+        )
+        let marketCap = StatisticModel(
+            title: String(localized: "detail.stats.marketCap"),
+            value: marketData.marketCap["usd"].map { "$" + $0.asBigNumber() } ?? "—",
+            percentageChange: marketData.priceChangePercentage24H
+        )
+        let rank = StatisticModel(
+            title: String(localized: "detail.stats.rank"),
+            value: marketCapRank.map(String.init) ?? "—"
+        )
+        let volume = StatisticModel(
+            title: String(localized: "detail.stats.volume"),
+            value: marketData.totalVolume["usd"].map { "$" + $0.asBigNumber() } ?? "—"
+        )
+        return [price, marketCap, rank, volume]
+    }
+
+    func toAdditionalStatistics() -> [StatisticModel] {
+        let blockTime = StatisticModel(
+            title: String(localized: "detail.stats.blockTime"),
+            value: blockTimeInMinutes.map { "\($0) min" } ?? "—"
+        )
+        let algorithm = StatisticModel(
+            title: String(localized: "detail.stats.hashingAlgorithm"),
+            value: hashingAlgorithm ?? "—"
+        )
+        let circulating = StatisticModel(
+            title: String(localized: "detail.stats.circulatingSupply"),
+            value: marketData.circulatingSupply.map { $0.asBigNumber() } ?? "—"
+        )
+        let maxSupplyStat = StatisticModel(
+            title: String(localized: "detail.stats.maxSupply"),
+            value: marketData.maxSupply.map { $0.asBigNumber() } ?? "—"
+        )
+        let trimmedGenesis = genesisDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let genesis = StatisticModel(
+            title: String(localized: "detail.stats.genesisDate"),
+            value: trimmedGenesis.isEmpty ? "—" : trimmedGenesis
+        )
+        return [blockTime, algorithm, circulating, maxSupplyStat, genesis]
     }
 }
