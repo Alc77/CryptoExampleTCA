@@ -1,8 +1,20 @@
 import ComposableArchitecture
+import Dependencies
 import XCTest
 @testable import CryptoExampleTCA
 
 final class HomeFeatureTabTests: XCTestCase {
+
+    // Per-test isolation for @Shared(.portfolioItems). HomeFeature.State() subscribes
+    // @Shared at construction time, so the Realm and PersistentReferences cache must be
+    // scoped per test — otherwise state leaks across tests in the same process.
+    override func invokeTest() {
+        withDependencies {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        } operation: {
+            super.invokeTest()
+        }
+    }
 
     // MARK: - 5.2 Default tab is Live Prices
 
@@ -21,8 +33,6 @@ final class HomeFeatureTabTests: XCTestCase {
 
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         await store.send(.tabSelected(.portfolio)) {
@@ -37,13 +47,10 @@ final class HomeFeatureTabTests: XCTestCase {
     func testSwitchToPortfolioTabEmptyHoldings() async {
         var initial = HomeFeature.State()
         initial.coins = HomeFeatureTests.mockCoins
-        // Explicitly reset to [] to avoid cross-test contamination via global @Shared registry
         initial.$portfolioItems.withLock { $0 = [] }
 
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         await store.send(.tabSelected(.portfolio)) {
@@ -63,8 +70,6 @@ final class HomeFeatureTabTests: XCTestCase {
 
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         await store.send(.tabSelected(.livePrices)) {
@@ -77,8 +82,6 @@ final class HomeFeatureTabTests: XCTestCase {
 
     @MainActor
     func testPortfolioTabWithSearchFilter() async {
-        // Note: @ObservableState keeps a local copy of @Shared values; TestStore syncs it.
-        // This test must use TestStore + action dispatch so the store synchronizes portfolioItems.
         var initial = HomeFeature.State()
         initial.coins = HomeFeatureTests.mockCoins
         initial.searchQuery = "bit"
@@ -91,8 +94,6 @@ final class HomeFeatureTabTests: XCTestCase {
 
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         await store.send(.tabSelected(.portfolio)) {
@@ -117,8 +118,6 @@ final class HomeFeatureTabTests: XCTestCase {
 
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         // Switch to price (defaults to descending)
@@ -154,8 +153,6 @@ final class HomeFeatureTabTests: XCTestCase {
 
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         // Switch to holdings sort (defaults to descending)
@@ -186,8 +183,6 @@ final class HomeFeatureTabTests: XCTestCase {
 
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         await store.send(.tabSelected(.portfolio)) {

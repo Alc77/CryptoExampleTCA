@@ -1,8 +1,20 @@
 import ComposableArchitecture
+import Dependencies
 import XCTest
 @testable import CryptoExampleTCA
 
 final class HomeFeatureSortTests: XCTestCase {
+
+    // Per-test isolation for @Shared(.portfolioItems). HomeFeature.State() subscribes
+    // @Shared at construction time, so the Realm and PersistentReferences cache must be
+    // scoped per test — otherwise state leaks across tests in the same process.
+    override func invokeTest() {
+        withDependencies {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        } operation: {
+            super.invokeTest()
+        }
+    }
 
     // MARK: - 5.9 Default state
 
@@ -88,8 +100,6 @@ final class HomeFeatureSortTests: XCTestCase {
         }
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         await store.send(.sortOptionSelected(.holdings)) {
@@ -117,8 +127,6 @@ final class HomeFeatureSortTests: XCTestCase {
         }
         let store = TestStore(initialState: initial) {
             HomeFeature()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
         // From holdings descending, toggle to holdings ascending

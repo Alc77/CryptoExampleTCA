@@ -40,8 +40,13 @@ struct RealmPortfolioKey: SharedKey, Hashable {
             let realm = try controller.realm()
             let results = realm.objects(PortfolioObject.self)
             token = results.observe { changes in
+                // Skip `.initial` — load() already delivered the initial value synchronously,
+                // and Realm's async .initial delivery would race with any withLock writes
+                // that happen between subscribe() and the observer's first runloop pass.
                 switch changes {
-                case .initial(let objects), .update(let objects, _, _, _):
+                case .initial:
+                    break
+                case .update(let objects, _, _, _):
                     let items = objects.map {
                         PortfolioItem(coinID: $0.coinID, amount: $0.amount)
                     }
