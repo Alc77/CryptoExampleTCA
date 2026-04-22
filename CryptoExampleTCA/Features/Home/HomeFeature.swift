@@ -87,6 +87,7 @@ struct HomeFeature {
         case searchTextChanged(String)
         case searchCommitted
         case sortOptionSelected(SortOption)
+        case coinTapped(CoinModel)
         case tabSelected(Tab)
     }
 
@@ -172,8 +173,14 @@ struct HomeFeature {
                 }
                 return .none
 
+            case let .coinTapped(coin):
+                guard state.destination == nil else { return .none }
+                state.destination = .detail(DetailFeature.State(coin: coin))
+                return .none
+
             case let .tabSelected(tab):
                 state.selectedTab = tab
+                state.destination = nil
                 return .none
             }
         }
@@ -244,8 +251,13 @@ struct HomeView: View {
                         Spacer()
                     } else {
                         List(store.filteredCoins) { coin in
-                            CoinRowView(coin: coin)
-                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            Button {
+                                store.send(.coinTapped(coin))
+                            } label: {
+                                CoinRowView(coin: coin)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         }
                         .listStyle(.plain)
                     }
@@ -269,6 +281,11 @@ struct HomeView: View {
         }
         .onAppear {
             store.send(.onAppear)
+        }
+        .navigationDestination(
+            item: $store.scope(state: \.destination?.detail, action: \.destination.detail)
+        ) { detailStore in
+            DetailView(store: detailStore)
         }
     }
 
