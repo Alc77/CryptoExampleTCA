@@ -63,4 +63,47 @@ final class HomeFeatureNavigationTests: XCTestCase {
             $0.destination = nil
         }
     }
+
+    // MARK: - AC5: portfolioButtonTapped presents portfolio destination
+
+    @MainActor
+    func testPortfolioButtonTappedPresentsPortfolioDestination() async {
+        let store = TestStore(initialState: HomeFeature.State()) {
+            HomeFeature()
+        }
+
+        await store.send(.portfolioButtonTapped) {
+            $0.destination = .portfolio(PortfolioFeature.State())
+        }
+    }
+
+    // MARK: - AC6: dismiss clears portfolio destination
+
+    @MainActor
+    func testDismissDestinationClearsPortfolio() async {
+        var initial = HomeFeature.State()
+        initial.destination = .portfolio(PortfolioFeature.State())
+
+        let store = TestStore(initialState: initial) {
+            HomeFeature()
+        }
+
+        await store.send(.destination(.dismiss)) {
+            $0.destination = nil
+        }
+    }
+
+    // MARK: - AC4/AC7: portfolioButtonTapped is ignored when portfolio already presented
+
+    @MainActor
+    func testPortfolioButtonTappedIsIgnoredWhenPortfolioAlreadyPresented() async {
+        var initial = HomeFeature.State()
+        initial.destination = .portfolio(PortfolioFeature.State())
+
+        let store = TestStore(initialState: initial) {
+            HomeFeature()
+        }
+
+        await store.send(.portfolioButtonTapped)
+    }
 }

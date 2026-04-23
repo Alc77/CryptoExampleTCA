@@ -81,6 +81,17 @@
         }
       }
     },
+    "home.portfolio.openButton" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open portfolio"
+          }
+        }
+      }
+    },
     "home.search.prompt" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -159,6 +170,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Головна"
+          }
+        }
+      }
+    },
+    "portfolio.placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portfolio management coming soon"
           }
         }
       }
