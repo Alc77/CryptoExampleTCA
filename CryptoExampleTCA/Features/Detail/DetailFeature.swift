@@ -11,11 +11,13 @@ struct DetailFeature {
         var coinDetail: CoinDetailModel?
         var isLoading = false
         var error: CoinGeckoError?
+        var showFullDescription = false
     }
 
     enum Action {
         case onAppear
         case coinDetailFetched(TaskResult<CoinDetailModel>)
+        case descriptionToggled
     }
 
     @Dependency(\.coinGeckoClient) var coinGeckoClient
@@ -43,6 +45,10 @@ struct DetailFeature {
                 state.isLoading = false
                 state.error = error as? CoinGeckoError ?? .networkUnavailable
                 return .none
+
+            case .descriptionToggled:
+                state.showFullDescription.toggle()
+                return .none
             }
         }
     }
@@ -67,6 +73,8 @@ struct DetailView: View {
             } else if let detail = store.coinDetail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        chartSection(for: detail)
+
                         sectionHeader("detail.section.overview")
                         LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                             ForEach(detail.toOverviewStatistics()) { stat in
@@ -80,6 +88,8 @@ struct DetailView: View {
                                 StatisticView(stat: stat)
                             }
                         }
+
+                        descriptionSection(for: detail)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 24)
@@ -88,6 +98,43 @@ struct DetailView: View {
         }
         .navigationTitle(store.coin.name)
         .onAppear { store.send(.onAppear) }
+    }
+
+    @ViewBuilder
+    private func chartSection(for detail: CoinDetailModel) -> some View {
+        let now = Date()
+        let startDate = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
+        ChartView(
+            prices: detail.marketData.sparkline7D?.price ?? [],
+            startDate: startDate,
+            endDate: now,
+            priceChange: detail.marketData.priceChangePercentage7D
+        )
+    }
+
+    @ViewBuilder
+    private func descriptionSection(for detail: CoinDetailModel) -> some View {
+        let cleaned = (detail.description.en ?? "")
+            .removingHTMLTags
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleaned.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionHeader("detail.section.description")
+                Text(cleaned)
+                    .font(.callout)
+                    .lineLimit(store.showFullDescription ? nil : 3)
+                    .animation(.easeInOut, value: store.showFullDescription)
+                Button {
+                    store.send(.descriptionToggled, animation: .easeInOut)
+                } label: {
+                    Text(String(localized: store.showFullDescription
+                        ? "detail.description.readLess"
+                        : "detail.description.readMore"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.accent)
+                }
+            }
+        }
     }
 
     private func sectionHeader(_ key: String.LocalizationValue) -> some View {

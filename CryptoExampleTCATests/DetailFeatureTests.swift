@@ -99,4 +99,20 @@ final class DetailFeatureTests: XCTestCase {
 
         XCTAssertEqual(capturedId.value, "bitcoin")
     }
+
+    func testDescriptionToggledFlipsShowFullDescription() async {
+        let store = TestStore(
+            initialState: DetailFeature.State(coin: Self.mockCoin)
+        ) {
+            DetailFeature()
+        }
+
+        await store.send(.descriptionToggled) {
+            $0.showFullDescription = true
+        }
+
+        await store.send(.descriptionToggled) {
+            $0.showFullDescription = false
+        }
+    }
 }
