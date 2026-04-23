@@ -272,13 +272,24 @@
         }
       }
     },
-    "detail.section.overview" : {
+    "detail.description.readLess" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Overview"
+            "value" : "Read Less"
+          }
+        }
+      }
+    },
+    "detail.description.readMore" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read More"
           }
         }
       }
@@ -290,6 +301,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Additional Details"
+          }
+        }
+      }
+    },
+    "detail.section.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Description"
+          }
+        }
+      }
+    },
+    "detail.section.overview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overview"
           }
         }
       }
