@@ -217,6 +217,61 @@
     "Tab" : {
 
     },
+    "detail.chart.accessibility.change" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 7-day change"
+          }
+        }
+      }
+    },
+    "detail.chart.accessibility.label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7-day price chart"
+          }
+        }
+      }
+    },
+    "detail.chart.accessibility.max" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max %@"
+          }
+        }
+      }
+    },
+    "detail.chart.accessibility.min" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Min %@"
+          }
+        }
+      }
+    },
+    "detail.chart.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No chart data available"
+          }
+        }
+      }
+    },
     "detail.section.overview" : {
       "extractionState" : "manual",
       "localizations" : {

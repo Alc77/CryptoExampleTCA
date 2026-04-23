@@ -67,6 +67,8 @@ struct DetailView: View {
             } else if let detail = store.coinDetail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        chartSection(for: detail)
+
                         sectionHeader("detail.section.overview")
                         LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                             ForEach(detail.toOverviewStatistics()) { stat in
@@ -88,6 +90,18 @@ struct DetailView: View {
         }
         .navigationTitle(store.coin.name)
         .onAppear { store.send(.onAppear) }
+    }
+
+    @ViewBuilder
+    private func chartSection(for detail: CoinDetailModel) -> some View {
+        let now = Date()
+        let startDate = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
+        ChartView(
+            prices: detail.marketData.sparkline7D?.price ?? [],
+            startDate: startDate,
+            endDate: now,
+            priceChange: detail.marketData.priceChangePercentage7D
+        )
     }
 
     private func sectionHeader(_ key: String.LocalizationValue) -> some View {

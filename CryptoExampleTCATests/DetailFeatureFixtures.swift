@@ -72,4 +72,47 @@ extension DetailFeatureTests {
             maxSupply: 21_000_000
         )
     )
+
+    static let mockSparklinePrices: [Double] = stride(from: 0, through: 167, by: 1).map { hour in
+        let base = 65000.0
+        let drift = sin(Double(hour) / 12.0) * 1500
+        return base + drift
+    }
+
+    static let mockCoinDetailWithSparkline: CoinDetailModel = {
+        let base = DetailFeatureTests.mockCoinDetail
+        return CoinDetailModel(
+            id: base.id,
+            symbol: base.symbol,
+            name: base.name,
+            blockTimeInMinutes: base.blockTimeInMinutes,
+            hashingAlgorithm: base.hashingAlgorithm,
+            description: base.description,
+            links: base.links,
+            image: base.image,
+            marketCapRank: base.marketCapRank,
+            genesisDate: base.genesisDate,
+            marketData: CoinDetailModel.MarketData(
+                currentPrice: base.marketData.currentPrice,
+                marketCap: base.marketData.marketCap,
+                totalVolume: base.marketData.totalVolume,
+                high24H: base.marketData.high24H,
+                low24H: base.marketData.low24H,
+                priceChange24H: base.marketData.priceChange24H,
+                priceChangePercentage24H: base.marketData.priceChangePercentage24H,
+                priceChangePercentage7D: base.marketData.priceChangePercentage7D,
+                priceChangePercentage14D: base.marketData.priceChangePercentage14D,
+                priceChangePercentage30D: base.marketData.priceChangePercentage30D,
+                priceChangePercentage60D: base.marketData.priceChangePercentage60D,
+                ath: base.marketData.ath,
+                athChangePercentage: base.marketData.athChangePercentage,
+                atl: base.marketData.atl,
+                atlChangePercentage: base.marketData.atlChangePercentage,
+                sparkline7D: CoinModel.SparklineIn7D(price: DetailFeatureTests.mockSparklinePrices),
+                circulatingSupply: base.marketData.circulatingSupply,
+                totalSupply: base.marketData.totalSupply,
+                maxSupply: base.marketData.maxSupply
+            )
+        )
+    }()
 }
