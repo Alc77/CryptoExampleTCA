@@ -18,9 +18,12 @@ struct DetailFeature {
         case onAppear
         case coinDetailFetched(TaskResult<CoinDetailModel>)
         case descriptionToggled
+        case websiteLinkTapped(URL)
+        case redditLinkTapped(URL)
     }
 
     @Dependency(\.coinGeckoClient) var coinGeckoClient
+    @Dependency(\.urlOpener) var urlOpener
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -49,8 +52,38 @@ struct DetailFeature {
             case .descriptionToggled:
                 state.showFullDescription.toggle()
                 return .none
+
+            case let .websiteLinkTapped(url):
+                return .run { _ in await urlOpener.open(url) }
+
+            case let .redditLinkTapped(url):
+                return .run { _ in await urlOpener.open(url) }
             }
         }
+    }
+}
+
+// MARK: - Link URL Derivation
+
+private func parsedHTTPURL(from string: String) -> URL? {
+    guard let url = URL(string: string),
+          let scheme = url.scheme?.lowercased(),
+          scheme == "http" || scheme == "https" else { return nil }
+    return url
+}
+
+fileprivate extension CoinDetailModel.Links {
+    var websiteURL: URL? {
+        homepage
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty })
+            .flatMap(parsedHTTPURL(from:))
+    }
+
+    var redditURL: URL? {
+        subredditUrl
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : parsedHTTPURL(from: $0) }
     }
 }
 
@@ -90,6 +123,7 @@ struct DetailView: View {
                         }
 
                         descriptionSection(for: detail)
+                        linksSection(for: detail)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 24)
@@ -135,6 +169,43 @@ struct DetailView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func linksSection(for detail: CoinDetailModel) -> some View {
+        let website = detail.links.websiteURL
+        let reddit = detail.links.redditURL
+        if website != nil || reddit != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionHeader("detail.section.links")
+                if let website {
+                    Button {
+                        store.send(.websiteLinkTapped(website))
+                    } label: {
+                        linkRow(titleKey: "detail.links.website", systemImage: "globe")
+                    }
+                }
+                if let reddit {
+                    Button {
+                        store.send(.redditLinkTapped(reddit))
+                    } label: {
+                        linkRow(titleKey: "detail.links.reddit", systemImage: "bubble.left.and.bubble.right")
+                    }
+                }
+            }
+        }
+    }
+
+    private func linkRow(titleKey: String.LocalizationValue, systemImage: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+            Text(String(localized: titleKey))
+            Spacer()
+            Image(systemName: "arrow.up.right.square")
+        }
+        .font(.callout.weight(.semibold))
+        .foregroundStyle(Color.accent)
+        .contentShape(Rectangle())
     }
 
     private func sectionHeader(_ key: String.LocalizationValue) -> some View {

@@ -115,4 +115,40 @@ final class DetailFeatureTests: XCTestCase {
             $0.showFullDescription = false
         }
     }
+
+    func testWebsiteLinkTappedInvokesURLOpener() async {
+        let expectedURL = URL(string: "https://bitcoin.org")!
+        let captured = LockIsolated<URL?>(nil)
+
+        let store = TestStore(
+            initialState: DetailFeature.State(coin: Self.mockCoin)
+        ) {
+            DetailFeature()
+        } withDependencies: {
+            $0.urlOpener.open = { url in captured.setValue(url) }
+        }
+
+        await store.send(.websiteLinkTapped(expectedURL))
+        await store.finish()
+
+        XCTAssertEqual(captured.value, expectedURL)
+    }
+
+    func testRedditLinkTappedInvokesURLOpener() async {
+        let expectedURL = URL(string: "https://reddit.com/r/bitcoin")!
+        let captured = LockIsolated<URL?>(nil)
+
+        let store = TestStore(
+            initialState: DetailFeature.State(coin: Self.mockCoin)
+        ) {
+            DetailFeature()
+        } withDependencies: {
+            $0.urlOpener.open = { url in captured.setValue(url) }
+        }
+
+        await store.send(.redditLinkTapped(expectedURL))
+        await store.finish()
+
+        XCTAssertEqual(captured.value, expectedURL)
+    }
 }
