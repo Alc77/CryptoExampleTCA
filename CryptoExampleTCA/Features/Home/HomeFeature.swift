@@ -88,6 +88,7 @@ struct HomeFeature {
         case searchCommitted
         case sortOptionSelected(SortOption)
         case coinTapped(CoinModel)
+        case portfolioButtonTapped
         case tabSelected(Tab)
     }
 
@@ -176,6 +177,11 @@ struct HomeFeature {
             case let .coinTapped(coin):
                 guard state.destination == nil else { return .none }
                 state.destination = .detail(DetailFeature.State(coin: coin))
+                return .none
+
+            case .portfolioButtonTapped:
+                guard state.destination == nil else { return .none }
+                state.destination = .portfolio(PortfolioFeature.State())
                 return .none
 
             case let .tabSelected(tab):
@@ -270,6 +276,14 @@ struct HomeView: View {
             prompt: Text("home.search.prompt")
         )
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    store.send(.portfolioButtonTapped)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(Text("home.portfolio.openButton"))
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     store.send(.reloadButtonTapped)
@@ -286,6 +300,11 @@ struct HomeView: View {
             item: $store.scope(state: \.destination?.detail, action: \.destination.detail)
         ) { detailStore in
             DetailView(store: detailStore)
+        }
+        .sheet(
+            item: $store.scope(state: \.destination?.portfolio, action: \.destination.portfolio)
+        ) { portfolioStore in
+            PortfolioView(store: portfolioStore)
         }
     }
 
