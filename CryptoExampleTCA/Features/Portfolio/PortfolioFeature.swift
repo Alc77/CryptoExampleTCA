@@ -4,22 +4,126 @@ import SwiftUI
 @Reducer
 struct PortfolioFeature {
     @ObservableState
-    struct State: Equatable {}
+    struct State: Equatable {
+        var coins: [CoinModel] = []
+        var selectedCoin: CoinModel?
+        var amountText: String = ""
+        @Shared(.portfolioItems) var portfolioItems: [PortfolioItem] = []
+    }
 
-    enum Action {}
+    enum Action {
+        case coinTapped(CoinModel)
+        case amountChanged(String)
+        case saveButtonTapped
+    }
+
+    @Dependency(\.dismiss) var dismiss
 
     var body: some ReducerOf<Self> {
-        EmptyReducer()
+        Reduce { state, action in
+            switch action {
+            case let .coinTapped(coin):
+                state.selectedCoin = coin
+                if let existing = state.portfolioItems.first(where: { $0.coinID == coin.id }) {
+                    state.amountText = Self.format(existing.amount)
+                } else {
+                    state.amountText = ""
+                }
+                return .none
+
+            case let .amountChanged(text):
+                state.amountText = text
+                return .none
+
+            case .saveButtonTapped:
+                guard let coin = state.selectedCoin,
+                      let amount = Double(state.amountText),
+                      amount.isFinite, amount > 0 else {
+                    return .none
+                }
+                state.$portfolioItems.withLock { items in
+                    if let index = items.firstIndex(where: { $0.coinID == coin.id }) {
+                        items[index].amount = amount
+                    } else {
+                        items.append(PortfolioItem(coinID: coin.id, amount: amount))
+                    }
+                }
+                state.amountText = ""
+                state.selectedCoin = nil
+                return .run { _ in await dismiss() }
+            }
+        }
+    }
+
+    private static func format(_ amount: Double) -> String {
+        guard amount.isFinite else { return "" }
+        if amount == amount.rounded(), let asInt = Int(exactly: amount) {
+            return String(asInt)
+        }
+        return String(amount)
     }
 }
 
 // MARK: - View
 
 struct PortfolioView: View {
-    let store: StoreOf<PortfolioFeature>
+    @Bindable var store: StoreOf<PortfolioFeature>
 
     var body: some View {
-        Text("portfolio.placeholder")
-            .padding()
+        NavigationStack {
+            VStack(spacing: 0) {
+                if let selected = store.selectedCoin {
+                    selectedCoinEditor(for: selected)
+                }
+                List(store.coins) { coin in
+                    Button {
+                        store.send(.coinTapped(coin))
+                    } label: {
+                        coinRow(coin)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .navigationTitle("portfolio.title")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    @ViewBuilder
+    private func selectedCoinEditor(for coin: CoinModel) -> some View {
+        HStack {
+            Text(coin.symbol.uppercased())
+                .font(.headline)
+            Spacer()
+            TextField(
+                "portfolio.amount.prompt",
+                text: $store.amountText.sending(\.amountChanged)
+            )
+            .keyboardType(.decimalPad)
+            .multilineTextAlignment(.trailing)
+            .frame(maxWidth: 120)
+            Button("portfolio.save") {
+                store.send(.saveButtonTapped)
+            }
+            .disabled(Double(store.amountText).map { $0 <= 0 } ?? true)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+    }
+
+    @ViewBuilder
+    private func coinRow(_ coin: CoinModel) -> some View {
+        HStack {
+            Text(coin.symbol.uppercased())
+                .font(.headline)
+                .frame(width: 60, alignment: .leading)
+            Text(coin.name)
+            Spacer()
+            if let holdings = store.portfolioItems.first(where: { $0.coinID == coin.id })?.amount {
+                Text(holdings, format: .number)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .contentShape(Rectangle())
     }
 }
