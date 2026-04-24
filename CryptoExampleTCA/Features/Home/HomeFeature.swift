@@ -181,7 +181,7 @@ struct HomeFeature {
 
             case .portfolioButtonTapped:
                 guard state.destination == nil else { return .none }
-                state.destination = .portfolio(PortfolioFeature.State())
+                state.destination = .portfolio(PortfolioFeature.State(coins: state.coins))
                 return .none
 
             case let .tabSelected(tab):

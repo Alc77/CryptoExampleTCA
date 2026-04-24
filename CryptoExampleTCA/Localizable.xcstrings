@@ -174,13 +174,35 @@
         }
       }
     },
-    "portfolio.placeholder" : {
+    "portfolio.amount.prompt" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Portfolio management coming soon"
+            "value" : "Amount"
+          }
+        }
+      }
+    },
+    "portfolio.save" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }
+      }
+    },
+    "portfolio.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Portfolio"
           }
         }
       }
