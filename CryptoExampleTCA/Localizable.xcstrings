@@ -196,6 +196,17 @@
         }
       }
     },
+    "portfolio.search.prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search coin name or symbol"
+          }
+        }
+      }
+    },
     "portfolio.title" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -8,6 +8,16 @@ struct PortfolioFeature {
         var coins: [CoinModel] = []
         var selectedCoin: CoinModel?
         var amountText: String = ""
+        var searchText: String = ""
+        var searchQuery: String = ""
+        var filteredCoins: [CoinModel] {
+            let query = searchQuery.trimmingCharacters(in: .whitespaces)
+            guard !query.isEmpty else { return coins }
+            return coins.filter { coin in
+                coin.name.localizedCaseInsensitiveContains(query)
+                    || coin.symbol.localizedCaseInsensitiveContains(query)
+            }
+        }
         @Shared(.portfolioItems) var portfolioItems: [PortfolioItem] = []
     }
 
@@ -15,9 +25,14 @@ struct PortfolioFeature {
         case coinTapped(CoinModel)
         case amountChanged(String)
         case saveButtonTapped
+        case searchTextChanged(String)
+        case searchCommitted
     }
 
     @Dependency(\.dismiss) var dismiss
+    @Dependency(\.continuousClock) var clock
+
+    private enum SearchDebounceID { case debounce }
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -63,6 +78,21 @@ struct PortfolioFeature {
                 state.amountText = ""
                 state.selectedCoin = nil
                 return .run { _ in await dismiss() }
+
+            case let .searchTextChanged(text):
+                guard text != state.searchText else { return .none }
+                state.searchText = text
+                return .run { send in
+                    try await clock.sleep(for: .seconds(0.5))
+                    await send(.searchCommitted)
+                }
+                .cancellable(id: SearchDebounceID.debounce, cancelInFlight: true)
+
+            case .searchCommitted:
+                state.searchQuery = state.searchText
+                state.selectedCoin = nil
+                state.amountText = ""
+                return .none
             }
         }
     }
@@ -87,7 +117,7 @@ struct PortfolioView: View {
                 if let selected = store.selectedCoin {
                     selectedCoinEditor(for: selected)
                 }
-                List(store.coins) { coin in
+                List(store.filteredCoins) { coin in
                     Button {
                         store.send(.coinTapped(coin))
                     } label: {
@@ -98,6 +128,10 @@ struct PortfolioView: View {
             }
             .navigationTitle("portfolio.title")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $store.searchText.sending(\.searchTextChanged),
+                prompt: Text("portfolio.search.prompt")
+            )
         }
     }
 
