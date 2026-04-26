@@ -13,8 +13,8 @@ import Dependencies
 // MARK: - PERSISTENCE GUARANTEES (Story 4.5)
 //
 // FR18 — Cross-launch persistence:
-//   `liveValue` opens `Application Support/default.realm` (Realm's default
-//   file URL on iOS sandbox). Data written via `RealmPortfolioKey.save(...)`
+//   `liveValue` opens `Documents/default.realm` (realm-swift 20.0.4's default
+//   file URL on the iOS app sandbox). Data written via `RealmPortfolioKey.save(...)`
 //   survives app termination and is restored on the next launch by
 //   `RealmPortfolioKey.load(...)` on first `@Shared(.portfolioItems)` read.
 //   Verified by PortfolioPersistenceTests.testPortfolioRoundTripsAcrossControllerInstances.
@@ -50,7 +50,7 @@ struct RealmController: Sendable {
     /// Construct a controller backed by an on-disk Realm at the given file URL.
     /// Used by cross-launch persistence tests in `PortfolioPersistenceTests.swift`
     /// to prove FR18 round-trip behaviour without touching the app's default
-    /// `Application Support/default.realm`. Production code MUST use `.live`.
+    /// `Documents/default.realm`. Production code MUST use `.live`.
     static func atURL(_ fileURL: URL) -> RealmController {
         RealmController(
             configuration: Realm.Configuration(fileURL: fileURL, schemaVersion: 1)
