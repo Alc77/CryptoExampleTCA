@@ -36,18 +36,30 @@ struct PortfolioFeature {
                 return .none
 
             case .saveButtonTapped:
-                guard let coin = state.selectedCoin,
-                      let amount = Double(state.amountText),
-                      amount.isFinite, amount > 0 else {
-                    return .none
-                }
-                state.$portfolioItems.withLock { items in
-                    if let index = items.firstIndex(where: { $0.coinID == coin.id }) {
-                        items[index].amount = amount
-                    } else {
-                        items.append(PortfolioItem(coinID: coin.id, amount: amount))
+                guard let coin = state.selectedCoin else { return .none }
+
+                let existingIndex = state.portfolioItems.firstIndex(where: { $0.coinID == coin.id })
+                let parsedAmount = Double(state.amountText)
+                let isRemovalIntent = state.amountText.isEmpty || parsedAmount == .some(0.0)
+
+                if isRemovalIntent {
+                    guard let index = existingIndex else { return .none }
+                    state.$portfolioItems.withLock { items in
+                        _ = items.remove(at: index)
+                    }
+                } else {
+                    guard let amount = parsedAmount, amount.isFinite, amount > 0 else {
+                        return .none
+                    }
+                    state.$portfolioItems.withLock { items in
+                        if let index = existingIndex {
+                            items[index].amount = amount
+                        } else {
+                            items.append(PortfolioItem(coinID: coin.id, amount: amount))
+                        }
                     }
                 }
+
                 state.amountText = ""
                 state.selectedCoin = nil
                 return .run { _ in await dismiss() }
@@ -105,10 +117,24 @@ struct PortfolioView: View {
             Button("portfolio.save") {
                 store.send(.saveButtonTapped)
             }
-            .disabled(Double(store.amountText).map { $0 <= 0 } ?? true)
+            .disabled(isSaveDisabled(for: coin))
         }
         .padding()
         .background(Color(.secondarySystemBackground))
+    }
+
+    private func isSaveDisabled(for coin: CoinModel) -> Bool {
+        let isExisting = store.portfolioItems.contains { $0.coinID == coin.id }
+        if store.amountText.isEmpty {
+            return !isExisting
+        }
+        guard let amount = Double(store.amountText), amount.isFinite else {
+            return true
+        }
+        if amount == 0 {
+            return !isExisting
+        }
+        return amount < 0
     }
 
     @ViewBuilder

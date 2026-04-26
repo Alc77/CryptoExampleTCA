@@ -171,6 +171,199 @@ final class PortfolioFeatureTests: XCTestCase {
 
         await store.send(.saveButtonTapped)
     }
+
+    // MARK: - AC2 & AC6: saveButtonTapped removes existing holding on zero amount
+
+    @MainActor
+    func testSaveButtonTappedRemovesExistingHoldingOnZeroAmount() async {
+        await withDependencies {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        } operation: {
+            let seedStore = TestStore(
+                initialState: PortfolioFeature.State(
+                    coins: [bitcoin],
+                    selectedCoin: bitcoin,
+                    amountText: "1.0"
+                )
+            ) {
+                PortfolioFeature()
+            } withDependencies: {
+                $0.dismiss = DismissEffect { }
+            }
+            await seedStore.send(.saveButtonTapped) {
+                $0.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 1.0)] }
+                $0.amountText = ""
+                $0.selectedCoin = nil
+            }
+            await seedStore.finish()
+
+            let removeStore = TestStore(
+                initialState: PortfolioFeature.State(
+                    coins: [bitcoin],
+                    selectedCoin: bitcoin,
+                    amountText: "0"
+                )
+            ) {
+                PortfolioFeature()
+            } withDependencies: {
+                $0.dismiss = DismissEffect { }
+            }
+            await removeStore.send(.saveButtonTapped) {
+                $0.$portfolioItems.withLock { $0 = [] }
+                $0.amountText = ""
+                $0.selectedCoin = nil
+            }
+            await removeStore.finish()
+        }
+    }
+
+    // MARK: - AC1 & AC6: saveButtonTapped removes existing holding on empty amount
+
+    @MainActor
+    func testSaveButtonTappedRemovesExistingHoldingOnEmptyAmount() async {
+        await withDependencies {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        } operation: {
+            let seedStore = TestStore(
+                initialState: PortfolioFeature.State(
+                    coins: [bitcoin],
+                    selectedCoin: bitcoin,
+                    amountText: "2.5"
+                )
+            ) {
+                PortfolioFeature()
+            } withDependencies: {
+                $0.dismiss = DismissEffect { }
+            }
+            await seedStore.send(.saveButtonTapped) {
+                $0.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 2.5)] }
+                $0.amountText = ""
+                $0.selectedCoin = nil
+            }
+            await seedStore.finish()
+
+            let removeStore = TestStore(
+                initialState: PortfolioFeature.State(
+                    coins: [bitcoin],
+                    selectedCoin: bitcoin,
+                    amountText: ""
+                )
+            ) {
+                PortfolioFeature()
+            } withDependencies: {
+                $0.dismiss = DismissEffect { }
+            }
+            await removeStore.send(.saveButtonTapped) {
+                $0.$portfolioItems.withLock { $0 = [] }
+                $0.amountText = ""
+                $0.selectedCoin = nil
+            }
+            await removeStore.finish()
+        }
+    }
+
+    // MARK: - AC2 & AC6: saveButtonTapped removes only the targeted entry
+
+    @MainActor
+    func testSaveButtonTappedRemovesOnlyTargetEntry() async {
+        await withDependencies {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        } operation: {
+            let seedBitcoin = TestStore(
+                initialState: PortfolioFeature.State(
+                    coins: [bitcoin, ethereum],
+                    selectedCoin: bitcoin,
+                    amountText: "1.0"
+                )
+            ) {
+                PortfolioFeature()
+            } withDependencies: {
+                $0.dismiss = DismissEffect { }
+            }
+            await seedBitcoin.send(.saveButtonTapped) {
+                $0.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 1.0)] }
+                $0.amountText = ""
+                $0.selectedCoin = nil
+            }
+            await seedBitcoin.finish()
+
+            let seedEthereum = TestStore(
+                initialState: PortfolioFeature.State(
+                    coins: [bitcoin, ethereum],
+                    selectedCoin: ethereum,
+                    amountText: "2.5"
+                )
+            ) {
+                PortfolioFeature()
+            } withDependencies: {
+                $0.dismiss = DismissEffect { }
+            }
+            await seedEthereum.send(.saveButtonTapped) {
+                $0.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 1.0), PortfolioItem(coinID: "ethereum", amount: 2.5)] }
+                $0.amountText = ""
+                $0.selectedCoin = nil
+            }
+            await seedEthereum.finish()
+
+            let removeStore = TestStore(
+                initialState: PortfolioFeature.State(
+                    coins: [bitcoin, ethereum],
+                    selectedCoin: bitcoin,
+                    amountText: "0"
+                )
+            ) {
+                PortfolioFeature()
+            } withDependencies: {
+                $0.dismiss = DismissEffect { }
+            }
+            await removeStore.send(.saveButtonTapped) {
+                $0.$portfolioItems.withLock {
+                    $0 = [PortfolioItem(coinID: "ethereum", amount: 2.5)]
+                }
+                $0.amountText = ""
+                $0.selectedCoin = nil
+            }
+            await removeStore.finish()
+        }
+    }
+
+    // MARK: - AC4: saveButtonTapped no-ops on zero amount for a coin not in portfolio
+
+    @MainActor
+    func testSaveButtonTappedNoOpsOnZeroAmountForNewCoin() async {
+        let store = TestStore(
+            initialState: PortfolioFeature.State(
+                coins: [bitcoin],
+                selectedCoin: bitcoin,
+                amountText: "0"
+            )
+        ) {
+            PortfolioFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        }
+
+        await store.send(.saveButtonTapped)
+    }
+
+    // MARK: - AC4: saveButtonTapped no-ops on empty amount for a coin not in portfolio
+
+    @MainActor
+    func testSaveButtonTappedNoOpsOnEmptyAmountForNewCoin() async {
+        let store = TestStore(
+            initialState: PortfolioFeature.State(
+                coins: [bitcoin],
+                selectedCoin: bitcoin,
+                amountText: ""
+            )
+        ) {
+            PortfolioFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        }
+
+        await store.send(.saveButtonTapped)
+    }
 }
 
 // MARK: - Fixtures
