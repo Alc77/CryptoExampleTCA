@@ -1,4 +1,5 @@
 // CryptoExampleTCA/Persistence/RealmController.swift
+import Foundation
 import RealmSwift
 import Dependencies
 
@@ -8,6 +9,30 @@ import Dependencies
 // Approach: RealmPortfolioKey (custom SharedKey) — see RealmPortfolioKey.swift
 // Tests passing: RealmControllerTests (round-trip) + PortfolioSpikeTests (TestStore)
 // Epic 4 portfolio stories will use @Shared(.portfolioItems) in PortfolioFeature.State
+
+// MARK: - PERSISTENCE GUARANTEES (Story 4.5)
+//
+// FR18 — Cross-launch persistence:
+//   `liveValue` opens `Documents/default.realm` (realm-swift 20.0.4's default
+//   file URL on the iOS app sandbox). Data written via `RealmPortfolioKey.save(...)`
+//   survives app termination and is restored on the next launch by
+//   `RealmPortfolioKey.load(...)` on first `@Shared(.portfolioItems)` read.
+//   Verified by PortfolioPersistenceTests.testPortfolioRoundTripsAcrossControllerInstances.
+//
+// NFR5 — No blocking main-thread init at launch:
+//   `Realm(configuration:)` is NEVER called from `@main` /
+//   `CryptoExampleTCAApp.body` / root `Store(initialState:)` setup. The
+//   first Realm open happens lazily inside `RealmPortfolioKey.load(...)` /
+//   `subscribe(...)`, which swift-sharing 2.8.0 invokes only on first
+//   `@Shared(.portfolioItems)` access (HomeFeature.State first read).
+//
+// NFR7 — On-device only:
+//   `Realm.Configuration` declares NO `syncConfiguration`. Portfolio data
+//   never leaves the device — no CloudKit, no Atlas Device Sync, no
+//   network upload path. The persistence boundary is one-way (disk only).
+//   Code review must reject any change that adds `syncConfiguration` or
+//   exfiltrates `PortfolioObject` / `PortfolioItem` outside the
+//   Persistence/ folder.
 
 struct RealmController: Sendable {
     let configuration: Realm.Configuration
@@ -19,6 +44,16 @@ struct RealmController: Sendable {
     static func inMemory(id: String) -> RealmController {
         RealmController(
             configuration: Realm.Configuration(inMemoryIdentifier: id)
+        )
+    }
+
+    /// Construct a controller backed by an on-disk Realm at the given file URL.
+    /// Used by cross-launch persistence tests in `PortfolioPersistenceTests.swift`
+    /// to prove FR18 round-trip behaviour without touching the app's default
+    /// `Documents/default.realm`. Production code MUST use `.live`.
+    static func atURL(_ fileURL: URL) -> RealmController {
+        RealmController(
+            configuration: Realm.Configuration(fileURL: fileURL, schemaVersion: 1)
         )
     }
 
