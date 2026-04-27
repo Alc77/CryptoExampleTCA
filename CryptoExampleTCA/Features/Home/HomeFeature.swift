@@ -78,10 +78,13 @@ struct HomeFeature {
         }
 
         var portfolioValue: Double {
-            let priceMap = Dictionary(uniqueKeysWithValues: coins.compactMap { coin -> (String, Double)? in
-                guard let price = coin.currentPrice else { return nil }
-                return (coin.id, price)
-            })
+            let priceMap = Dictionary(
+                coins.compactMap { coin -> (String, Double)? in
+                    guard let price = coin.currentPrice else { return nil }
+                    return (coin.id, price)
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
             return portfolioItems.reduce(into: 0.0) { total, item in
                 guard let price = priceMap[item.coinID] else { return }
                 total += price * item.amount
@@ -91,15 +94,18 @@ struct HomeFeature {
         var portfolio24HChange: Double? {
             var current: Double = 0
             var previous: Double = 0
-            let coinByID = Dictionary(uniqueKeysWithValues: coins.map { ($0.id, $0) })
+            let coinByID = Dictionary(
+                coins.map { ($0.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
             for item in portfolioItems {
                 guard let coin = coinByID[item.coinID],
-                      let price = coin.currentPrice,
-                      let change = coin.priceChange24H else { continue }
+                      let price = coin.currentPrice else { continue }
+                let change = coin.priceChange24H ?? 0
                 current += price * item.amount
                 previous += (price - change) * item.amount
             }
-            guard previous != 0 else { return nil }
+            guard previous > 0 else { return nil }
             return ((current - previous) / previous) * 100
         }
 

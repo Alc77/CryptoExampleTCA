@@ -120,10 +120,10 @@ final class HomeFeaturePortfolioValuationTests: XCTestCase {
         )
     }
 
-    // MARK: - AC4: nil priceChange24H yields nil portfolio 24h change
+    // MARK: - AC4 (D3): nil priceChange24H is treated as 0 — basket consistent with portfolioValue
 
     @MainActor
-    func testPortfolio24HChangeIsNilWhenAllPriceChangesAreNil() async {
+    func testPortfolio24HChangeIsZeroWhenAllPriceChangesAreNil() async {
         var state = HomeFeature.State()
         let bitcoinNoChange = CoinModel(
             id: "bitcoin", symbol: "btc", name: "Bitcoin", image: "",
@@ -145,8 +145,12 @@ final class HomeFeaturePortfolioValuationTests: XCTestCase {
 
         let store = TestStore(initialState: state) { HomeFeature() }
 
+        // A coin with non-nil price but nil priceChange24H contributes price*amount to BOTH
+        // `current` and `previous` (treating change as 0). The portfolio value matches the
+        // priced basket; the percentage reads as 0% movement (we have no signal to suggest
+        // otherwise). Same denominator on both sides keeps the value/percent baskets aligned.
         XCTAssertEqual(store.state.portfolioValue, 0.5 * 65000.0, accuracy: 1e-6)
-        XCTAssertNil(store.state.portfolio24HChange)
-        XCTAssertEqual(store.state.portfolioStatistic?.percentageChange, nil)
+        XCTAssertEqual(store.state.portfolio24HChange ?? .nan, 0, accuracy: 1e-6)
+        XCTAssertEqual(store.state.portfolioStatistic?.percentageChange ?? .nan, 0, accuracy: 1e-6)
     }
 }
