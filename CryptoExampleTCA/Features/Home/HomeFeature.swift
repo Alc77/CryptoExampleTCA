@@ -76,6 +76,47 @@ struct HomeFeature {
             }
             return sortAscending ? result : result.reversed()
         }
+
+        var portfolioValue: Double {
+            let priceMap = Dictionary(
+                coins.compactMap { coin -> (String, Double)? in
+                    guard let price = coin.currentPrice else { return nil }
+                    return (coin.id, price)
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            return portfolioItems.reduce(into: 0.0) { total, item in
+                guard let price = priceMap[item.coinID] else { return }
+                total += price * item.amount
+            }
+        }
+
+        var portfolio24HChange: Double? {
+            var current: Double = 0
+            var previous: Double = 0
+            let coinByID = Dictionary(
+                coins.map { ($0.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            for item in portfolioItems {
+                guard let coin = coinByID[item.coinID],
+                      let price = coin.currentPrice else { continue }
+                let change = coin.priceChange24H ?? 0
+                current += price * item.amount
+                previous += (price - change) * item.amount
+            }
+            guard previous > 0 else { return nil }
+            return ((current - previous) / previous) * 100
+        }
+
+        var portfolioStatistic: StatisticModel? {
+            guard portfolioValue > 0 else { return nil }
+            return StatisticModel(
+                title: String(localized: "stats.portfolioValue"),
+                value: portfolioValue.asCurrencyWith2Decimals(),
+                percentageChange: portfolio24HChange
+            )
+        }
     }
 
     enum Action {
@@ -234,6 +275,9 @@ struct HomeView: View {
                         HStack(spacing: 0) {
                             ForEach(store.statistics) { stat in
                                 StatisticView(stat: stat)
+                            }
+                            if let portfolioStat = store.portfolioStatistic {
+                                StatisticView(stat: portfolioStat)
                             }
                         }
                     }

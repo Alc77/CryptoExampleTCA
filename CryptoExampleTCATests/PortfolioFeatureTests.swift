@@ -9,15 +9,15 @@ final class PortfolioFeatureTests: XCTestCase {
     @MainActor
     func testCoinTappedSelectsCoinAndClearsAmount() async {
         let store = TestStore(
-            initialState: PortfolioFeature.State(coins: [bitcoin, ethereum])
+            initialState: PortfolioFeature.State(coins: [Self.bitcoin, Self.ethereum])
         ) {
             PortfolioFeature()
         } withDependencies: {
             $0.realmController = .inMemory(id: UUID().uuidString)
         }
 
-        await store.send(.coinTapped(bitcoin)) {
-            $0.selectedCoin = bitcoin
+        await store.send(.coinTapped(Self.bitcoin)) {
+            $0.selectedCoin = Self.bitcoin
             $0.amountText = ""
         }
     }
@@ -33,8 +33,8 @@ final class PortfolioFeatureTests: XCTestCase {
             // Save store: seed portfolioItems with bitcoin 2.5. DismissEffect marks this store dismissed.
             let saveStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin],
+                    selectedCoin: Self.bitcoin,
                     amountText: "2.5"
                 )
             ) {
@@ -51,12 +51,12 @@ final class PortfolioFeatureTests: XCTestCase {
 
             // Prefill store: portfolioItems is already [bitcoin 2.5] via the shared reference.
             let prefillStore = TestStore(
-                initialState: PortfolioFeature.State(coins: [bitcoin])
+                initialState: PortfolioFeature.State(coins: [Self.bitcoin])
             ) {
                 PortfolioFeature()
             }
-            await prefillStore.send(.coinTapped(bitcoin)) {
-                $0.selectedCoin = bitcoin
+            await prefillStore.send(.coinTapped(Self.bitcoin)) {
+                $0.selectedCoin = Self.bitcoin
                 $0.amountText = "2.5"
             }
         }
@@ -67,7 +67,7 @@ final class PortfolioFeatureTests: XCTestCase {
     @MainActor
     func testAmountChangedUpdatesText() async {
         let store = TestStore(
-            initialState: PortfolioFeature.State(coins: [bitcoin], selectedCoin: bitcoin)
+            initialState: PortfolioFeature.State(coins: [Self.bitcoin], selectedCoin: Self.bitcoin)
         ) {
             PortfolioFeature()
         } withDependencies: {
@@ -85,8 +85,8 @@ final class PortfolioFeatureTests: XCTestCase {
     func testSaveButtonTappedAddsNewHolding() async {
         let store = TestStore(
             initialState: PortfolioFeature.State(
-                coins: [bitcoin],
-                selectedCoin: bitcoin,
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
                 amountText: "2.5"
             )
         ) {
@@ -115,8 +115,8 @@ final class PortfolioFeatureTests: XCTestCase {
             // First save: add bitcoin at 1.0
             let firstStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin],
+                    selectedCoin: Self.bitcoin,
                     amountText: "1.0"
                 )
             ) {
@@ -135,8 +135,8 @@ final class PortfolioFeatureTests: XCTestCase {
             // Reducer must find the existing entry and update in-place; count must stay 1 (AC3).
             let updateStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin],
+                    selectedCoin: Self.bitcoin,
                     amountText: "5.0"
                 )
             ) {
@@ -159,8 +159,8 @@ final class PortfolioFeatureTests: XCTestCase {
     func testSaveButtonTappedNoOpsOnInvalidAmount() async {
         let store = TestStore(
             initialState: PortfolioFeature.State(
-                coins: [bitcoin],
-                selectedCoin: bitcoin,
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
                 amountText: "abc"
             )
         ) {
@@ -172,6 +172,94 @@ final class PortfolioFeatureTests: XCTestCase {
         await store.send(.saveButtonTapped)
     }
 
+    // MARK: - 4.6: saveButtonTapped no-ops on astronomical amount (above 1e15)
+
+    @MainActor
+    func testSaveButtonTappedNoOpsOnAstronomicalAmount() async {
+        let store = TestStore(
+            initialState: PortfolioFeature.State(
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
+                amountText: "1e16"
+            )
+        ) {
+            PortfolioFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        }
+
+        await store.send(.saveButtonTapped)
+    }
+
+    // MARK: - 4.6: saveButtonTapped no-ops on subnormal amount (below 1e-12)
+
+    @MainActor
+    func testSaveButtonTappedNoOpsOnSubnormalAmount() async {
+        let store = TestStore(
+            initialState: PortfolioFeature.State(
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
+                amountText: "5e-324"
+            )
+        ) {
+            PortfolioFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+        }
+
+        await store.send(.saveButtonTapped)
+    }
+
+    // MARK: - 4.6: saveButtonTapped accepts the inclusive lower bound (1e-12)
+
+    @MainActor
+    func testSaveButtonTappedAcceptsExactLowerBound() async {
+        let store = TestStore(
+            initialState: PortfolioFeature.State(
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
+                amountText: "1e-12"
+            )
+        ) {
+            PortfolioFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+            $0.dismiss = DismissEffect { }
+        }
+
+        await store.send(.saveButtonTapped) {
+            $0.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 1e-12)] }
+            $0.amountText = ""
+            $0.selectedCoin = nil
+        }
+        await store.finish()
+    }
+
+    // MARK: - 4.6: saveButtonTapped accepts the inclusive upper bound (1e15)
+
+    @MainActor
+    func testSaveButtonTappedAcceptsExactUpperBound() async {
+        let store = TestStore(
+            initialState: PortfolioFeature.State(
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
+                amountText: "1e15"
+            )
+        ) {
+            PortfolioFeature()
+        } withDependencies: {
+            $0.realmController = .inMemory(id: UUID().uuidString)
+            $0.dismiss = DismissEffect { }
+        }
+
+        await store.send(.saveButtonTapped) {
+            $0.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 1e15)] }
+            $0.amountText = ""
+            $0.selectedCoin = nil
+        }
+        await store.finish()
+    }
+
     // MARK: - AC2 & AC6: saveButtonTapped removes existing holding on zero amount
 
     @MainActor
@@ -181,8 +269,8 @@ final class PortfolioFeatureTests: XCTestCase {
         } operation: {
             let seedStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin],
+                    selectedCoin: Self.bitcoin,
                     amountText: "1.0"
                 )
             ) {
@@ -199,8 +287,8 @@ final class PortfolioFeatureTests: XCTestCase {
 
             let removeStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin],
+                    selectedCoin: Self.bitcoin,
                     amountText: "0"
                 )
             ) {
@@ -226,8 +314,8 @@ final class PortfolioFeatureTests: XCTestCase {
         } operation: {
             let seedStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin],
+                    selectedCoin: Self.bitcoin,
                     amountText: "2.5"
                 )
             ) {
@@ -244,8 +332,8 @@ final class PortfolioFeatureTests: XCTestCase {
 
             let removeStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin],
+                    selectedCoin: Self.bitcoin,
                     amountText: ""
                 )
             ) {
@@ -271,8 +359,8 @@ final class PortfolioFeatureTests: XCTestCase {
         } operation: {
             let seedBitcoin = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin, ethereum],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin, Self.ethereum],
+                    selectedCoin: Self.bitcoin,
                     amountText: "1.0"
                 )
             ) {
@@ -289,8 +377,8 @@ final class PortfolioFeatureTests: XCTestCase {
 
             let seedEthereum = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin, ethereum],
-                    selectedCoin: ethereum,
+                    coins: [Self.bitcoin, Self.ethereum],
+                    selectedCoin: Self.ethereum,
                     amountText: "2.5"
                 )
             ) {
@@ -307,8 +395,8 @@ final class PortfolioFeatureTests: XCTestCase {
 
             let removeStore = TestStore(
                 initialState: PortfolioFeature.State(
-                    coins: [bitcoin, ethereum],
-                    selectedCoin: bitcoin,
+                    coins: [Self.bitcoin, Self.ethereum],
+                    selectedCoin: Self.bitcoin,
                     amountText: "0"
                 )
             ) {
@@ -333,8 +421,8 @@ final class PortfolioFeatureTests: XCTestCase {
     func testSaveButtonTappedNoOpsOnZeroAmountForNewCoin() async {
         let store = TestStore(
             initialState: PortfolioFeature.State(
-                coins: [bitcoin],
-                selectedCoin: bitcoin,
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
                 amountText: "0"
             )
         ) {
@@ -352,8 +440,8 @@ final class PortfolioFeatureTests: XCTestCase {
     func testSaveButtonTappedNoOpsOnEmptyAmountForNewCoin() async {
         let store = TestStore(
             initialState: PortfolioFeature.State(
-                coins: [bitcoin],
-                selectedCoin: bitcoin,
+                coins: [Self.bitcoin],
+                selectedCoin: Self.bitcoin,
                 amountText: ""
             )
         ) {
@@ -364,135 +452,9 @@ final class PortfolioFeatureTests: XCTestCase {
 
         await store.send(.saveButtonTapped)
     }
-
-    @MainActor
-    private func makeSearchStore(state: PortfolioFeature.State = .init(), clock: TestClock<Duration>? = nil) -> TestStoreOf<PortfolioFeature> {
-        TestStore(initialState: state) { PortfolioFeature() } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
-            if let clock { $0.continuousClock = clock }
-        }
-    }
-    @MainActor func testSearchTextChangedUpdatesSearchTextImmediately() async {
-        let clock = TestClock()
-        let store = makeSearchStore(clock: clock)
-        await store.send(.searchTextChanged("bit")) { $0.searchText = "bit" }
-        await clock.advance(by: .seconds(0.5))
-        await store.receive(\.searchCommitted) { $0.searchQuery = "bit" }
-    }
-    @MainActor func testRapidTypingDebouncesToSingleCommit() async {
-        let clock = TestClock()
-        let store = makeSearchStore(clock: clock)
-        await store.send(.searchTextChanged("b")) { $0.searchText = "b" }
-        await clock.advance(by: .milliseconds(200))
-        await store.send(.searchTextChanged("bi")) { $0.searchText = "bi" }
-        await clock.advance(by: .milliseconds(200))
-        await store.send(.searchTextChanged("bit")) { $0.searchText = "bit" }
-        await clock.advance(by: .seconds(0.5))
-        await store.receive(\.searchCommitted) { $0.searchQuery = "bit" }
-    }
-    @MainActor func testSearchCommittedUpdatesSearchQuery() async {
-        let store = makeSearchStore(state: .init(searchText: "eth"))
-        await store.send(.searchCommitted) { $0.searchQuery = "eth" }
-    }
-    @MainActor func testClearingSearchRestoresFullList() async {
-        let clock = TestClock()
-        let store = makeSearchStore(state: .init(coins: [bitcoin, ethereum], searchText: "bit", searchQuery: "bit"), clock: clock)
-        await store.send(.searchTextChanged("")) { $0.searchText = "" }
-        await clock.advance(by: .seconds(0.5))
-        await store.receive(\.searchCommitted) { $0.searchQuery = "" }
-    }
-    func testFilteredCoinsByName() {
-        let state = PortfolioFeature.State(coins: [bitcoin, ethereum], searchQuery: "bitcoin")
-        XCTAssertEqual(state.filteredCoins.map(\.id), ["bitcoin"])
-    }
-    func testFilteredCoinsBySymbol() {
-        let state = PortfolioFeature.State(coins: [bitcoin, ethereum], searchQuery: "eth")
-        XCTAssertEqual(state.filteredCoins.map(\.id), ["ethereum"])
-    }
-    func testFilteredCoinsIsCaseInsensitive() {
-        let state = PortfolioFeature.State(coins: [bitcoin, ethereum], searchQuery: "BITCOIN")
-        XCTAssertEqual(state.filteredCoins.map(\.id), ["bitcoin"])
-    }
-    func testFilteredCoinsEmptyQueryReturnsAll() {
-        let coins = [bitcoin, ethereum]
-        XCTAssertEqual(PortfolioFeature.State(coins: coins).filteredCoins.map(\.id), coins.map(\.id))
-    }
-    func testFilteredCoinsNoMatchReturnsEmpty() {
-        let state = PortfolioFeature.State(coins: [bitcoin, ethereum], searchQuery: "xyznonexistent")
-        XCTAssertTrue(state.filteredCoins.isEmpty)
-    }
-    func testFilteredCoinsWhitespaceOnlyReturnsAll() {
-        let coins = [bitcoin, ethereum]
-        XCTAssertEqual(PortfolioFeature.State(coins: coins, searchQuery: "   ").filteredCoins.map(\.id), coins.map(\.id))
-    }
-    @MainActor func testSearchCommittedClearsSelectedCoinAndAmount() async {
-        let store = makeSearchStore(state: .init(selectedCoin: bitcoin, amountText: "5", searchText: "eth"))
-        await store.send(.searchCommitted) {
-            $0.searchQuery = "eth"
-            $0.selectedCoin = nil
-            $0.amountText = ""
-        }
-    }
 }
 
 // MARK: - Fixtures
 
-private let bitcoin = CoinModel(
-    id: "bitcoin",
-    symbol: "btc",
-    name: "Bitcoin",
-    image: "https://example.com/btc.png",
-    currentPrice: 65000.0,
-    marketCap: 1_200_000_000_000,
-    marketCapRank: 1,
-    fullyDilutedValuation: 1_300_000_000_000,
-    totalVolume: 30_000_000_000,
-    high24H: 66000,
-    low24H: 64000,
-    priceChange24H: 1500,
-    priceChangePercentage24H: 2.35,
-    marketCapChange24H: 20_000_000_000,
-    marketCapChangePercentage24H: 1.69,
-    circulatingSupply: 19_500_000,
-    totalSupply: 21_000_000,
-    maxSupply: 21_000_000,
-    ath: 73000,
-    athChangePercentage: -10.96,
-    athDate: "2024-03-14",
-    atl: 67.81,
-    atlChangePercentage: 95000,
-    atlDate: "2013-07-06",
-    lastUpdated: "2024-01-01T00:00:00.000Z",
-    sparklineIn7D: nil,
-    currentHoldings: nil
-)
-
-private let ethereum = CoinModel(
-    id: "ethereum",
-    symbol: "eth",
-    name: "Ethereum",
-    image: "https://example.com/eth.png",
-    currentPrice: 3500.0,
-    marketCap: 420_000_000_000,
-    marketCapRank: 2,
-    fullyDilutedValuation: 420_000_000_000,
-    totalVolume: 15_000_000_000,
-    high24H: 3600,
-    low24H: 3400,
-    priceChange24H: -50,
-    priceChangePercentage24H: -1.41,
-    marketCapChange24H: -5_000_000_000,
-    marketCapChangePercentage24H: -1.18,
-    circulatingSupply: 120_000_000,
-    totalSupply: nil,
-    maxSupply: nil,
-    ath: 4878,
-    athChangePercentage: -28.25,
-    athDate: "2021-11-10",
-    atl: 0.43,
-    atlChangePercentage: 800000,
-    atlDate: "2015-10-20",
-    lastUpdated: "2024-01-01T00:00:00.000Z",
-    sparklineIn7D: nil,
-    currentHoldings: nil
-)
+// Canonical fixtures defined in `PortfolioFeatureFixtures.swift`.
+// Sibling test files reference `PortfolioFeatureTests.bitcoin` / `.ethereum` directly.
