@@ -63,7 +63,15 @@ struct PortfolioFeature {
                         _ = items.remove(at: index)
                     }
                 } else {
-                    guard let amount = parsedAmount, amount.isFinite, amount > 0 else {
+                    // Reject astronomically large or subnormal-tiny values: they pass
+                    // `> 0 && isFinite` but produce nonsensical portfolio totals downstream
+                    // in Story 4.6's stats-row aggregation.
+                    let minHolding: Double = 1e-12
+                    let maxHolding: Double = 1e15
+                    guard let amount = parsedAmount,
+                          amount.isFinite,
+                          amount >= minHolding,
+                          amount <= maxHolding else {
                         return .none
                     }
                     state.$portfolioItems.withLock { items in

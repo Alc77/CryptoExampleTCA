@@ -38,6 +38,20 @@ struct CoinRowView: View {
                             : Color.red
                     )
             }
+
+            if let holdings = coin.currentHoldings, holdings > 0,
+               let price = coin.currentPrice {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text((holdings * price).asCurrencyWith2Decimals())
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(holdings.asNumberString())
+                        .font(.subheadline)
+                        .foregroundStyle(Color.secondaryText)
+                }
+                .padding(.leading, 16)
+                .frame(minWidth: 100, alignment: .trailing)
+            }
         }
         .padding(.vertical, 4)
     }

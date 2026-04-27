@@ -17,7 +17,12 @@ struct CryptoExampleTCAApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AppView(store: store)
+            // Skip the app UI when XCTest is running — otherwise HomeView.onAppear fires
+            // and starts a coinGeckoClient fetch task (using the unimplemented testValue)
+            // that races against the test suite.
+            if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+                AppView(store: store)
+            }
         }
     }
 }
