@@ -1,14 +1,15 @@
 import ComposableArchitecture
-import XCTest
-@testable import CryptoExampleTCA
+import Testing
 
-final class AppFeatureTests: XCTestCase {
-
+extension BaseSuite {
     @MainActor
-    func testInitialStateHasEmptyHomeState() async {
-        let store = TestStore(initialState: AppFeature.State()) {
-            AppFeature()
+    @Suite struct AppFeatureTests {
+
+        @Test func initialStateHasEmptyHomeState() async {
+            let store = TestStore(initialState: AppFeature.State()) {
+                AppFeature()
+            }
+            #expect(store.state.home == HomeFeature.State())
         }
-        XCTAssertEqual(store.state.home, HomeFeature.State())
     }
 }

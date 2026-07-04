@@ -1,56 +1,43 @@
-import XCTest
-@testable import CryptoExampleTCA
+import Foundation
+import Testing
 
-final class HTTPClientTests: XCTestCase {
+extension BaseSuite {
+    @Suite struct HTTPClientTests {
 
-    func testSuccessReturnsData() async throws {
-        let expectedData = Data("{}".utf8)
-        let client = HTTPClient { _ in expectedData }
-        let url = try XCTUnwrap(URL(string: "https://example.com"))
-        let request = URLRequest(url: url)
-        let result = try await client.execute(request)
-        XCTAssertEqual(result, expectedData)
-    }
-
-    func testBadResponseThrowsCorrectError() async throws {
-        let client = HTTPClient { _ in throw CoinGeckoError.badResponse(statusCode: 404) }
-        let url = try XCTUnwrap(URL(string: "https://example.com"))
-        let request = URLRequest(url: url)
-        do {
-            _ = try await client.execute(request)
-            XCTFail("Expected throw")
-        } catch let error as CoinGeckoError {
-            XCTAssertEqual(error, .badResponse(statusCode: 404))
-        } catch {
-            XCTFail("Unexpected error type: \(error)")
+        @Test func successReturnsData() async throws {
+            let expectedData = Data("{}".utf8)
+            let client = HTTPClient { _ in expectedData }
+            let url = try #require(URL(string: "https://example.com"))
+            let request = URLRequest(url: url)
+            let result = try await client.execute(request)
+            #expect(result == expectedData)
         }
-    }
 
-    func testRateLimitedThrowsCorrectError() async throws {
-        let client = HTTPClient { _ in throw CoinGeckoError.rateLimited }
-        let url = try XCTUnwrap(URL(string: "https://example.com"))
-        let request = URLRequest(url: url)
-        do {
-            _ = try await client.execute(request)
-            XCTFail("Expected throw")
-        } catch let error as CoinGeckoError {
-            XCTAssertEqual(error, .rateLimited)
-        } catch {
-            XCTFail("Unexpected error type: \(error)")
+        @Test func badResponseThrowsCorrectError() async throws {
+            let client = HTTPClient { _ in throw CoinGeckoError.badResponse(statusCode: 404) }
+            let url = try #require(URL(string: "https://example.com"))
+            let request = URLRequest(url: url)
+            await #expect(throws: CoinGeckoError.badResponse(statusCode: 404)) {
+                _ = try await client.execute(request)
+            }
         }
-    }
 
-    func testNetworkUnavailableThrowsCorrectError() async throws {
-        let client = HTTPClient { _ in throw CoinGeckoError.networkUnavailable }
-        let url = try XCTUnwrap(URL(string: "https://example.com"))
-        let request = URLRequest(url: url)
-        do {
-            _ = try await client.execute(request)
-            XCTFail("Expected throw")
-        } catch let error as CoinGeckoError {
-            XCTAssertEqual(error, .networkUnavailable)
-        } catch {
-            XCTFail("Unexpected error type: \(error)")
+        @Test func rateLimitedThrowsCorrectError() async throws {
+            let client = HTTPClient { _ in throw CoinGeckoError.rateLimited }
+            let url = try #require(URL(string: "https://example.com"))
+            let request = URLRequest(url: url)
+            await #expect(throws: CoinGeckoError.rateLimited) {
+                _ = try await client.execute(request)
+            }
+        }
+
+        @Test func networkUnavailableThrowsCorrectError() async throws {
+            let client = HTTPClient { _ in throw CoinGeckoError.networkUnavailable }
+            let url = try #require(URL(string: "https://example.com"))
+            let request = URLRequest(url: url)
+            await #expect(throws: CoinGeckoError.networkUnavailable) {
+                _ = try await client.execute(request)
+            }
         }
     }
 }

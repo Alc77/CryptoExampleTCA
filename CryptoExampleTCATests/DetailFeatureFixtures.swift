@@ -1,8 +1,7 @@
 import Foundation
-@testable import CryptoExampleTCA
 
-extension DetailFeatureTests {
-    static let mockCoin = CoinModel(
+extension BaseSuite.DetailFeatureTests {
+    nonisolated static let mockCoin = CoinModel(
         id: "bitcoin",
         symbol: "btc",
         name: "Bitcoin",
@@ -32,7 +31,7 @@ extension DetailFeatureTests {
         currentHoldings: nil
     )
 
-    static let mockCoinDetail = CoinDetailModel(
+    nonisolated static let mockCoinDetail = CoinDetailModel(
         id: "bitcoin",
         symbol: "btc",
         name: "Bitcoin",
@@ -73,14 +72,14 @@ extension DetailFeatureTests {
         )
     )
 
-    static let mockSparklinePrices: [Double] = stride(from: 0, through: 167, by: 1).map { hour in
+    nonisolated static let mockSparklinePrices: [Double] = stride(from: 0, through: 167, by: 1).map { hour in
         let base = 65000.0
         let drift = sin(Double(hour) / 12.0) * 1500
         return base + drift
     }
 
-    static let mockCoinDetailWithSparkline: CoinDetailModel = {
-        let base = DetailFeatureTests.mockCoinDetail
+    nonisolated static let mockCoinDetailWithSparkline: CoinDetailModel = {
+        let base = Self.mockCoinDetail
         return CoinDetailModel(
             id: base.id,
             symbol: base.symbol,
@@ -108,7 +107,7 @@ extension DetailFeatureTests {
                 athChangePercentage: base.marketData.athChangePercentage,
                 atl: base.marketData.atl,
                 atlChangePercentage: base.marketData.atlChangePercentage,
-                sparkline7D: CoinModel.SparklineIn7D(price: DetailFeatureTests.mockSparklinePrices),
+                sparkline7D: CoinModel.SparklineIn7D(price: Self.mockSparklinePrices),
                 circulatingSupply: base.marketData.circulatingSupply,
                 totalSupply: base.marketData.totalSupply,
                 maxSupply: base.marketData.maxSupply

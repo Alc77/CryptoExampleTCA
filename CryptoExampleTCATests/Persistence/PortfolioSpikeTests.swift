@@ -1,7 +1,7 @@
 // CryptoExampleTCATests/Persistence/PortfolioSpikeTests.swift
 import ComposableArchitecture
-import XCTest
-@testable import CryptoExampleTCA
+import Foundation
+import Testing
 
 // Spike-only reducer — NOT shipped to production
 @Reducer
@@ -26,20 +26,21 @@ private struct PortfolioSpike {
     }
 }
 
-final class PortfolioSpikeTests: XCTestCase {
+extension BaseSuite {
+    @Suite struct PortfolioSpikeTests {
 
-    @MainActor
-    func testInMemorySubstitution() async {
-        let store = TestStore(
-            initialState: PortfolioSpike.State()
-        ) {
-            PortfolioSpike()
-        } withDependencies: {
-            $0.realmController = .inMemory(id: UUID().uuidString)
-        }
+        @MainActor @Test func inMemorySubstitution() async {
+            let store = TestStore(
+                initialState: PortfolioSpike.State()
+            ) {
+                PortfolioSpike()
+            } withDependencies: {
+                $0.realmController = .inMemory(id: UUID().uuidString)
+            }
 
-        await store.send(.addItem(coinID: "bitcoin", amount: 1.5)) {
-            $0.$items.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 1.5)] }
+            await store.send(.addItem(coinID: "bitcoin", amount: 1.5)) {
+                $0.$items.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 1.5)] }
+            }
         }
     }
 }

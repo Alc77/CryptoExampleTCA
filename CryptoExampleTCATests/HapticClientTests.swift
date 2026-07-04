@@ -1,20 +1,18 @@
-import XCTest
-@testable import CryptoExampleTCA
+import Testing
 
-final class HapticClientTests: XCTestCase {
+extension BaseSuite {
+    @Suite struct HapticClientTests {
 
-    func testLiveValueImpactIsCallableWithoutCrash() {
-        let client = HapticClient.liveValue
-        client.impact()
-    }
+        @Test func liveValueImpactIsCallableWithoutCrash() {
+            HapticClient.liveValue.impact()
+        }
 
-    func testTestValueImpactIsCallableWithoutCrash() {
-        let client = HapticClient.testValue
-        client.impact()
-    }
+        @Test func testValueImpactIsCallableWithoutCrash() {
+            HapticClient.testValue.impact()
+        }
 
-    func testPreviewValueImpactIsCallableWithoutCrash() {
-        let client = HapticClient.previewValue
-        client.impact()
+        @Test func previewValueImpactIsCallableWithoutCrash() {
+            HapticClient.previewValue.impact()
+        }
     }
 }

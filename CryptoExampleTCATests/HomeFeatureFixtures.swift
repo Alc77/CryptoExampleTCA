@@ -1,9 +1,8 @@
 import Foundation
-@testable import CryptoExampleTCA
 
-extension HomeFeatureTests {
+extension BaseSuite.HomeFeatureTests {
 
-    static let mockCoins: [CoinModel] = [
+    nonisolated static let mockCoins: [CoinModel] = [
         CoinModel(
             id: "bitcoin",
             symbol: "btc",
@@ -93,7 +92,7 @@ extension HomeFeatureTests {
         ),
     ]
 
-    static let mockMarketData = MarketDataModel(
+    nonisolated static let mockMarketData = MarketDataModel(
         data: MarketDataModel.GlobalData(
             totalMarketCap: ["usd": 2_500_000_000_000],
             totalVolume: ["usd": 80_000_000_000],
