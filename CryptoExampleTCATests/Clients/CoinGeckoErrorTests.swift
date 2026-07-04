@@ -3,17 +3,27 @@ import Testing
 extension BaseSuite {
     @Suite struct CoinGeckoErrorTests {
 
-        @Test func allCasesProvideNonEmptyErrorDescription() {
-            let cases: [CoinGeckoError] = [
-                .networkUnavailable,
-                .rateLimited,
-                .decodingFailed,
-                .badResponse(statusCode: 503)
-            ]
-            for error in cases {
-                #expect(error.errorDescription != nil, "\(error) must have a localized description")
-                #expect(!(error.errorDescription?.isEmpty ?? true), "\(error) description is empty")
+        // In a hostless test bundle, String(localized:) resolves against Bundle.main (the xctest
+        // runner, which carries no app strings), so errorDescription returns the raw key rather
+        // than the resolved translation. These tests assert the contracts verifiable WITHOUT
+        // Bundle.main resolution: every case has a non-empty, per-case-distinct description, and
+        // none collapses to the raw `String(describing:)` case name. Resolved-copy coverage would
+        // need a strings-carrying host or a Bundle-injection seam (see Story 4.7 Review Findings).
+        private static let allCases: [CoinGeckoError] = [
+            .networkUnavailable,
+            .rateLimited,
+            .decodingFailed,
+            .badResponse(statusCode: 503)
+        ]
+
+        @Test func allCasesProvideNonEmptyDistinctErrorDescriptions() {
+            let descriptions = Self.allCases.map(\.errorDescription)
+            for (error, description) in zip(Self.allCases, descriptions) {
+                #expect(description != nil, "\(error) must have a localized description")
+                #expect(!(description?.isEmpty ?? true), "\(error) description is empty")
             }
+            let resolved = descriptions.compactMap { $0 }
+            #expect(Set(resolved).count == Self.allCases.count, "each case must have its own description")
         }
 
         @Test func errorDescriptionIsNotRawCaseName() {
