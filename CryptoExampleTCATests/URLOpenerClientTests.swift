@@ -1,30 +1,32 @@
-import XCTest
-@testable import CryptoExampleTCA
+import Foundation
+import Testing
 
-final class URLOpenerClientTests: XCTestCase {
+extension BaseSuite {
+    @Suite struct URLOpenerClientTests {
 
-    func testOpenPassesCorrectURL() async {
-        let expectedURL = URL(string: "https://example.com")!
-        let capture = URLCapture()
+        @Test func openPassesCorrectURL() async throws {
+            let expectedURL = try #require(URL(string: "https://example.com"))
+            let capture = URLCapture()
 
-        let client = URLOpenerClient(open: { url in
-            await capture.set(url)
-        })
+            let client = URLOpenerClient(open: { url in
+                await capture.set(url)
+            })
 
-        await client.open(expectedURL)
+            await client.open(expectedURL)
 
-        let capturedURL = await capture.url
-        XCTAssertEqual(capturedURL, expectedURL)
-    }
+            let capturedURL = await capture.url
+            #expect(capturedURL == expectedURL)
+        }
 
-    func testTestValueIsCallableWithoutCrash() async {
-        let client = URLOpenerClient.testValue
-        await client.open(URL(string: "https://example.com")!)
-    }
+        @Test func testValueIsCallableWithoutCrash() async throws {
+            let url = try #require(URL(string: "https://example.com"))
+            await URLOpenerClient.testValue.open(url)
+        }
 
-    func testPreviewValueIsCallableWithoutCrash() async {
-        let client = URLOpenerClient.previewValue
-        await client.open(URL(string: "https://example.com")!)
+        @Test func previewValueIsCallableWithoutCrash() async throws {
+            let url = try #require(URL(string: "https://example.com"))
+            await URLOpenerClient.previewValue.open(url)
+        }
     }
 }
 

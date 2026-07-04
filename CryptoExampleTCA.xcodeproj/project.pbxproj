@@ -12,17 +12,10 @@
 		CE00001B00000000000001BA /* RealmSwift in Frameworks */ = {isa = PBXBuildFile; productRef = CE00001A00000000000001AA /* RealmSwift */; };
 		CE00001C00000000000001CA /* RealmSwift in Embed Frameworks */ = {isa = PBXBuildFile; productRef = CE00001A00000000000001AA /* RealmSwift */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE00001E00000000000001EA /* RealmSwift in Frameworks */ = {isa = PBXBuildFile; productRef = CE00001F00000000000001FA /* RealmSwift */; };
+		CE200021000000000000021A /* DependenciesTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CE200022000000000000022A /* DependenciesTestSupport */; };
+		CE200031000000000000031A /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = CE200030000000000000030A /* ComposableArchitecture */; };
+		CE200033000000000000033A /* Sharing in Frameworks */ = {isa = PBXBuildFile; productRef = CE200032000000000000032A /* Sharing */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		CE100009000000000000009A /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = CE000001000000000000001A /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = CE000005000000000000005A;
-			remoteInfo = CryptoExampleTCA;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		CE00001D00000000000001DA /* Embed Frameworks */ = {
@@ -45,9 +38,22 @@
 		CE100001000000000000001A /* CryptoExampleTCATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CryptoExampleTCATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CE200040000000000000040A /* Exceptions for "CryptoExampleTCA" folder in "CryptoExampleTCATests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				App/CryptoExampleTCAApp.swift,
+			);
+			target = CE100002000000000000002A /* CryptoExampleTCATests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CE000009000000000000009A /* CryptoExampleTCA */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE200040000000000000040A /* Exceptions for "CryptoExampleTCA" folder in "CryptoExampleTCATests" target */,
+			);
 			path = CryptoExampleTCA;
 			sourceTree = "<group>";
 		};
@@ -74,6 +80,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				CE00001E00000000000001EA /* RealmSwift in Frameworks */,
+				CE200021000000000000021A /* DependenciesTestSupport in Frameworks */,
+				CE200031000000000000031A /* ComposableArchitecture in Frameworks */,
+				CE200033000000000000033A /* Sharing in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -147,14 +156,17 @@
 			buildRules = (
 			);
 			dependencies = (
-				CE100010000000000000010A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				CE100005000000000000005A /* CryptoExampleTCATests */,
+				CE000009000000000000009A /* CryptoExampleTCA */,
 			);
 			name = CryptoExampleTCATests;
 			packageProductDependencies = (
 				CE00001F00000000000001FA /* RealmSwift */,
+				CE200022000000000000022A /* DependenciesTestSupport */,
+				CE200030000000000000030A /* ComposableArchitecture */,
+				CE200032000000000000032A /* Sharing */,
 			);
 			productName = CryptoExampleTCATests;
 			productReference = CE100001000000000000001A /* CryptoExampleTCATests.xctest */;
@@ -175,7 +187,6 @@
 					};
 					CE100002000000000000002A = {
 						CreatedOnToolsVersion = 26.4;
-						TestTargetID = CE000005000000000000005A;
 					};
 				};
 			};
@@ -230,14 +241,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		CE100010000000000000010A /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = CE000005000000000000005A /* CryptoExampleTCA */;
-			targetProxy = CE100009000000000000009A /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		CE00000C000000000000000C /* Debug */ = {
@@ -422,7 +425,6 @@
 		CE100007000000000000007A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7G262N8NMK;
@@ -436,14 +438,12 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CryptoExampleTCA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CryptoExampleTCA";
 			};
 			name = Debug;
 		};
 		CE100008000000000000008A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7G262N8NMK;
@@ -457,7 +457,6 @@
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CryptoExampleTCA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CryptoExampleTCA";
 			};
 			name = Release;
 		};
@@ -540,6 +539,20 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CE000019000000000000019A /* XCRemoteSwiftPackageReference "realm-swift" */;
 			productName = RealmSwift;
+		};
+		CE200022000000000000022A /* DependenciesTestSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DependenciesTestSupport;
+		};
+		CE200030000000000000030A /* ComposableArchitecture */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE000010000000000000010A /* XCRemoteSwiftPackageReference "swift-composable-architecture" */;
+			productName = ComposableArchitecture;
+		};
+		CE200032000000000000032A /* Sharing */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE000011000000000000011A /* XCRemoteSwiftPackageReference "swift-sharing" */;
+			productName = Sharing;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

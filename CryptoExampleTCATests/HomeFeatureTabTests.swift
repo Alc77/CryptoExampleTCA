@@ -1,202 +1,185 @@
 import ComposableArchitecture
-import Dependencies
-import XCTest
-@testable import CryptoExampleTCA
+import Testing
 
-final class HomeFeatureTabTests: XCTestCase {
-
-    // Per-test isolation for @Shared(.portfolioItems). HomeFeature.State() subscribes
-    // @Shared at construction time, so the Realm and PersistentReferences cache must be
-    // scoped per test — otherwise state leaks across tests in the same process.
-    override func invokeTest() {
-        withDependencies {
-            $0.realmController = .inMemory(id: UUID().uuidString)
-        } operation: {
-            super.invokeTest()
-        }
-    }
-
-    // MARK: - 5.2 Default tab is Live Prices
-
-    func testDefaultTabIsLivePrices() {
-        let state = HomeFeature.State()
-        XCTAssertEqual(state.selectedTab, .livePrices)
-    }
-
-    // MARK: - 5.3 Portfolio tab shows only held coins
-
+extension BaseSuite {
     @MainActor
-    func testSwitchToPortfolioTabShowsOnlyHeldCoins() async {
-        var initial = HomeFeature.State()
-        initial.coins = HomeFeatureTests.mockCoins
-        initial.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 0.5)] }
+    @Suite struct HomeFeatureTabTests {
 
-        let store = TestStore(initialState: initial) {
-            HomeFeature()
+        // MARK: - 5.2 Default tab is Live Prices
+
+        @Test func defaultTabIsLivePrices() {
+            let state = HomeFeature.State()
+            #expect(state.selectedTab == .livePrices)
         }
 
-        await store.send(.tabSelected(.portfolio)) {
-            $0.selectedTab = .portfolio
-        }
-        XCTAssertEqual(store.state.filteredCoins.map(\.id), ["bitcoin"])
-    }
+        // MARK: - 5.3 Portfolio tab shows only held coins
 
-    // MARK: - 5.4 Portfolio tab empty holdings
+        @Test func switchToPortfolioTabShowsOnlyHeldCoins() async {
+            var initial = HomeFeature.State()
+            initial.coins = HomeFeatureTests.mockCoins
+            initial.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 0.5)] }
 
-    @MainActor
-    func testSwitchToPortfolioTabEmptyHoldings() async {
-        var initial = HomeFeature.State()
-        initial.coins = HomeFeatureTests.mockCoins
-        initial.$portfolioItems.withLock { $0 = [] }
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
 
-        let store = TestStore(initialState: initial) {
-            HomeFeature()
-        }
-
-        await store.send(.tabSelected(.portfolio)) {
-            $0.selectedTab = .portfolio
-        }
-        XCTAssertTrue(store.state.filteredCoins.isEmpty)
-    }
-
-    // MARK: - 5.5 Switch back to Live Prices shows all coins
-
-    @MainActor
-    func testSwitchBackToLivePricesShowsAllCoins() async {
-        var initial = HomeFeature.State()
-        initial.coins = HomeFeatureTests.mockCoins
-        initial.selectedTab = .portfolio
-        initial.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 0.5)] }
-
-        let store = TestStore(initialState: initial) {
-            HomeFeature()
+            await store.send(.tabSelected(.portfolio)) {
+                $0.selectedTab = .portfolio
+            }
+            #expect(store.state.filteredCoins.map(\.id) == ["bitcoin"])
         }
 
-        await store.send(.tabSelected(.livePrices)) {
-            $0.selectedTab = .livePrices
-        }
-        XCTAssertEqual(store.state.filteredCoins.count, HomeFeatureTests.mockCoins.count)
-    }
+        // MARK: - 5.4 Portfolio tab empty holdings
 
-    // MARK: - 5.6 Portfolio tab with search filter
+        @Test func switchToPortfolioTabEmptyHoldings() async {
+            var initial = HomeFeature.State()
+            initial.coins = HomeFeatureTests.mockCoins
+            initial.$portfolioItems.withLock { $0 = [] }
 
-    @MainActor
-    func testPortfolioTabWithSearchFilter() async {
-        var initial = HomeFeature.State()
-        initial.coins = HomeFeatureTests.mockCoins
-        initial.searchQuery = "bit"
-        initial.$portfolioItems.withLock {
-            $0 = [
-                PortfolioItem(coinID: "bitcoin", amount: 0.5),
-                PortfolioItem(coinID: "ethereum", amount: 1.0)
-            ]
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            await store.send(.tabSelected(.portfolio)) {
+                $0.selectedTab = .portfolio
+            }
+            #expect(store.state.filteredCoins.isEmpty)
         }
 
-        let store = TestStore(initialState: initial) {
-            HomeFeature()
+        // MARK: - 5.5 Switch back to Live Prices shows all coins
+
+        @Test func switchBackToLivePricesShowsAllCoins() async {
+            var initial = HomeFeature.State()
+            initial.coins = HomeFeatureTests.mockCoins
+            initial.selectedTab = .portfolio
+            initial.$portfolioItems.withLock { $0 = [PortfolioItem(coinID: "bitcoin", amount: 0.5)] }
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            await store.send(.tabSelected(.livePrices)) {
+                $0.selectedTab = .livePrices
+            }
+            #expect(store.state.filteredCoins.count == HomeFeatureTests.mockCoins.count)
         }
 
-        await store.send(.tabSelected(.portfolio)) {
-            $0.selectedTab = .portfolio
-        }
-        XCTAssertEqual(store.state.filteredCoins.map(\.id), ["bitcoin"])
-    }
+        // MARK: - 5.6 Portfolio tab with search filter
 
-    // MARK: - 5.7 Portfolio tab with price sorting
+        @Test func portfolioTabWithSearchFilter() async {
+            var initial = HomeFeature.State()
+            initial.coins = HomeFeatureTests.mockCoins
+            initial.searchQuery = "bit"
+            initial.$portfolioItems.withLock {
+                $0 = [
+                    PortfolioItem(coinID: "bitcoin", amount: 0.5),
+                    PortfolioItem(coinID: "ethereum", amount: 1.0)
+                ]
+            }
 
-    @MainActor
-    func testPortfolioTabWithPriceSortAscending() async {
-        var initial = HomeFeature.State()
-        initial.coins = HomeFeatureTests.mockCoins
-        initial.selectedTab = .portfolio
-        initial.$portfolioItems.withLock {
-            $0 = [
-                PortfolioItem(coinID: "bitcoin", amount: 0.5),
-                PortfolioItem(coinID: "ethereum", amount: 1.0)
-            ]
-        }
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
 
-        let store = TestStore(initialState: initial) {
-            HomeFeature()
-        }
-
-        // Switch to price (defaults to descending)
-        await store.send(.sortOptionSelected(.price)) {
-            $0.sortOption = .price
-            $0.sortAscending = false
-        }
-        // Price descending: Bitcoin ($65000) > Ethereum ($3500)
-        XCTAssertEqual(store.state.filteredCoins.map(\.id), ["bitcoin", "ethereum"])
-
-        // Toggle to ascending — order must flip
-        await store.send(.sortOptionSelected(.price)) {
-            $0.sortAscending = true
-        }
-        // Price ascending: Ethereum ($3500) < Bitcoin ($65000)
-        XCTAssertEqual(store.state.filteredCoins.map(\.id), ["ethereum", "bitcoin"])
-    }
-
-    // MARK: - 5.7b Portfolio tab with holdings sorting
-
-    @MainActor
-    func testPortfolioTabWithHoldingsSorting() async {
-        var initial = HomeFeature.State()
-        initial.coins = HomeFeatureTests.mockCoins
-        initial.selectedTab = .portfolio
-        // Bitcoin: 0.5 × $65000 = $32500, Ethereum: 1.0 × $3500 = $3500
-        initial.$portfolioItems.withLock {
-            $0 = [
-                PortfolioItem(coinID: "bitcoin", amount: 0.5),
-                PortfolioItem(coinID: "ethereum", amount: 1.0)
-            ]
+            await store.send(.tabSelected(.portfolio)) {
+                $0.selectedTab = .portfolio
+            }
+            #expect(store.state.filteredCoins.map(\.id) == ["bitcoin"])
         }
 
-        let store = TestStore(initialState: initial) {
-            HomeFeature()
+        // MARK: - 5.7 Portfolio tab with price sorting
+
+        @Test func portfolioTabWithPriceSortAscending() async {
+            var initial = HomeFeature.State()
+            initial.coins = HomeFeatureTests.mockCoins
+            initial.selectedTab = .portfolio
+            initial.$portfolioItems.withLock {
+                $0 = [
+                    PortfolioItem(coinID: "bitcoin", amount: 0.5),
+                    PortfolioItem(coinID: "ethereum", amount: 1.0)
+                ]
+            }
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            // Switch to price (defaults to descending)
+            await store.send(.sortOptionSelected(.price)) {
+                $0.sortOption = .price
+                $0.sortAscending = false
+            }
+            // Price descending: Bitcoin ($65000) > Ethereum ($3500)
+            #expect(store.state.filteredCoins.map(\.id) == ["bitcoin", "ethereum"])
+
+            // Toggle to ascending — order must flip
+            await store.send(.sortOptionSelected(.price)) {
+                $0.sortAscending = true
+            }
+            // Price ascending: Ethereum ($3500) < Bitcoin ($65000)
+            #expect(store.state.filteredCoins.map(\.id) == ["ethereum", "bitcoin"])
         }
 
-        // Switch to holdings sort (defaults to descending)
-        await store.send(.sortOptionSelected(.holdings)) {
-            $0.sortOption = .holdings
-            $0.sortAscending = false
+        // MARK: - 5.7b Portfolio tab with holdings sorting
+
+        @Test func portfolioTabWithHoldingsSorting() async {
+            var initial = HomeFeature.State()
+            initial.coins = HomeFeatureTests.mockCoins
+            initial.selectedTab = .portfolio
+            // Bitcoin: 0.5 × $65000 = $32500, Ethereum: 1.0 × $3500 = $3500
+            initial.$portfolioItems.withLock {
+                $0 = [
+                    PortfolioItem(coinID: "bitcoin", amount: 0.5),
+                    PortfolioItem(coinID: "ethereum", amount: 1.0)
+                ]
+            }
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            // Switch to holdings sort (defaults to descending)
+            await store.send(.sortOptionSelected(.holdings)) {
+                $0.sortOption = .holdings
+                $0.sortAscending = false
+            }
+            // Holdings value descending: Bitcoin ($32500) > Ethereum ($3500)
+            #expect(store.state.filteredCoins.map(\.id) == ["bitcoin", "ethereum"])
+
+            // Toggle to ascending — order must flip
+            await store.send(.sortOptionSelected(.holdings)) {
+                $0.sortAscending = true
+            }
+            // Holdings value ascending: Ethereum ($3500) < Bitcoin ($32500)
+            #expect(store.state.filteredCoins.map(\.id) == ["ethereum", "bitcoin"])
         }
-        // Holdings value descending: Bitcoin ($32500) > Ethereum ($3500)
-        XCTAssertEqual(store.state.filteredCoins.map(\.id), ["bitcoin", "ethereum"])
 
-        // Toggle to ascending — order must flip
-        await store.send(.sortOptionSelected(.holdings)) {
-            $0.sortAscending = true
+        // MARK: - 5.8 Tab switch preserves search and sort state
+
+        @Test func tabSwitchPreservesSearchAndSort() async {
+            var initial = HomeFeature.State()
+            initial.coins = HomeFeatureTests.mockCoins
+            initial.searchQuery = "bit"
+            initial.sortOption = .price
+            initial.sortAscending = false
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            await store.send(.tabSelected(.portfolio)) {
+                $0.selectedTab = .portfolio
+            }
+            #expect(store.state.searchQuery == "bit")
+            #expect(store.state.sortOption == .price)
+            #expect(!store.state.sortAscending)
+
+            await store.send(.tabSelected(.livePrices)) {
+                $0.selectedTab = .livePrices
+            }
+            #expect(store.state.searchQuery == "bit")
+            #expect(store.state.sortOption == .price)
+            #expect(!store.state.sortAscending)
         }
-        // Holdings value ascending: Ethereum ($3500) < Bitcoin ($32500)
-        XCTAssertEqual(store.state.filteredCoins.map(\.id), ["ethereum", "bitcoin"])
-    }
-
-    // MARK: - 5.8 Tab switch preserves search and sort state
-
-    @MainActor
-    func testTabSwitchPreservesSearchAndSort() async {
-        var initial = HomeFeature.State()
-        initial.coins = HomeFeatureTests.mockCoins
-        initial.searchQuery = "bit"
-        initial.sortOption = .price
-        initial.sortAscending = false
-
-        let store = TestStore(initialState: initial) {
-            HomeFeature()
-        }
-
-        await store.send(.tabSelected(.portfolio)) {
-            $0.selectedTab = .portfolio
-        }
-        XCTAssertEqual(store.state.searchQuery, "bit")
-        XCTAssertEqual(store.state.sortOption, .price)
-        XCTAssertFalse(store.state.sortAscending)
-
-        await store.send(.tabSelected(.livePrices)) {
-            $0.selectedTab = .livePrices
-        }
-        XCTAssertEqual(store.state.searchQuery, "bit")
-        XCTAssertEqual(store.state.sortOption, .price)
-        XCTAssertFalse(store.state.sortAscending)
     }
 }

@@ -1,9 +1,8 @@
 import Foundation
-@testable import CryptoExampleTCA
 
-extension PortfolioFeatureTests {
+extension BaseSuite.PortfolioFeatureTests {
 
-    static let bitcoin = CoinModel(
+    nonisolated static let bitcoin = CoinModel(
         id: "bitcoin",
         symbol: "btc",
         name: "Bitcoin",
@@ -33,7 +32,7 @@ extension PortfolioFeatureTests {
         currentHoldings: nil
     )
 
-    static let ethereum = CoinModel(
+    nonisolated static let ethereum = CoinModel(
         id: "ethereum",
         symbol: "eth",
         name: "Ethereum",
