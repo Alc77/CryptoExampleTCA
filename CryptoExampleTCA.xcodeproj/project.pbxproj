@@ -158,8 +158,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				CE100005000000000000005A /* CryptoExampleTCATests */,
 				CE000009000000000000009A /* CryptoExampleTCA */,
+				CE100005000000000000005A /* CryptoExampleTCATests */,
 			);
 			name = CryptoExampleTCATests;
 			packageProductDependencies = (
