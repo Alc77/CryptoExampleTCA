@@ -72,7 +72,7 @@ extension BaseSuite {
 
         // MARK: Tests
 
-        /// AC3: a cache miss fetches the bytes via `httpClient`, decodes them, and writes to disk —
+        /// AC3: a cache miss fetches the bytes via `imageHTTPClient`, decodes them, and writes to disk —
         /// and the bytes written round-trip exactly to what was fetched.
         @Test func cacheMissFetchesAndWrites() async throws {
             let dir = Self.makeTempDirectory()
@@ -81,7 +81,7 @@ extension BaseSuite {
             let png = Self.makePNG()
 
             let image = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in png }
+                $0.imageHTTPClient = HTTPClient { _ in png }
             } operation: {
                 try await ImageCacheClient.live(cacheDirectory: dir, maxBytes: 50_000).image(url)
             }
@@ -109,7 +109,7 @@ extension BaseSuite {
 
             // Seed the cache via a first (miss) fetch.
             _ = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in png }
+                $0.imageHTTPClient = HTTPClient { _ in png }
             } operation: {
                 try await client.image(url)
             }
@@ -117,7 +117,7 @@ extension BaseSuite {
             // Second call must hit disk and never touch the network.
             let callCount = LockIsolated(0)
             let image = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in
+                $0.imageHTTPClient = HTTPClient { _ in
                     callCount.withValue { $0 += 1 }
                     return png
                 }
@@ -139,7 +139,7 @@ extension BaseSuite {
             let callCount = LockIsolated(0)
 
             try await withDependencies {
-                $0.httpClient = HTTPClient { _ in
+                $0.imageHTTPClient = HTTPClient { _ in
                     callCount.withValue { $0 += 1 }
                     // Hold the fetch open so both requests are genuinely in flight together.
                     try await Task.sleep(for: .milliseconds(30))
@@ -170,14 +170,14 @@ extension BaseSuite {
             let newURL = try #require(URL(string: "https://coin-images.example/new/large.png"))
 
             _ = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in png }
+                $0.imageHTTPClient = HTTPClient { _ in png }
             } operation: {
                 try await client.image(oldURL)
             }
             // Force the first entry strictly older — deterministic, no wall-clock sleep.
             Self.setModificationDate(.distantPast, forFilesIn: dir)
             _ = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in png }
+                $0.imageHTTPClient = HTTPClient { _ in png }
             } operation: {
                 try await client.image(newURL)
             }
@@ -189,7 +189,7 @@ extension BaseSuite {
             // The surviving entry is the newer one (cache hit → no network).
             let callCount = LockIsolated(0)
             _ = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in
+                $0.imageHTTPClient = HTTPClient { _ in
                     callCount.withValue { $0 += 1 }
                     return png
                 }
@@ -210,7 +210,7 @@ extension BaseSuite {
             let client = ImageCacheClient.live(cacheDirectory: dir, maxBytes: png.count / 2)
 
             _ = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in png }
+                $0.imageHTTPClient = HTTPClient { _ in png }
             } operation: {
                 try await client.image(url)
             }
@@ -220,7 +220,7 @@ extension BaseSuite {
             // It persisted → the next request is a cache hit with no network call.
             let callCount = LockIsolated(0)
             _ = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in
+                $0.imageHTTPClient = HTTPClient { _ in
                     callCount.withValue { $0 += 1 }
                     return png
                 }
@@ -240,7 +240,7 @@ extension BaseSuite {
 
             // Seed a valid cache entry, then corrupt the bytes on disk.
             _ = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in png }
+                $0.imageHTTPClient = HTTPClient { _ in png }
             } operation: {
                 try await client.image(url)
             }
@@ -249,7 +249,7 @@ extension BaseSuite {
             // Undecodable disk bytes → refetch exactly once, then decode succeeds.
             let callCount = LockIsolated(0)
             let image = try await withDependencies {
-                $0.httpClient = HTTPClient { _ in
+                $0.imageHTTPClient = HTTPClient { _ in
                     callCount.withValue { $0 += 1 }
                     return png
                 }
@@ -272,7 +272,7 @@ extension BaseSuite {
             let second = try #require(URL(string: "https://coin-images.example/b/large.png"))
             for url in [first, second] {
                 _ = try await withDependencies {
-                    $0.httpClient = HTTPClient { _ in png }
+                    $0.imageHTTPClient = HTTPClient { _ in png }
                 } operation: {
                     try await client.image(url)
                 }
@@ -293,13 +293,57 @@ extension BaseSuite {
 
             await #expect(throws: ImageCacheError.decodingFailed) {
                 try await withDependencies {
-                    $0.httpClient = HTTPClient { _ in Data("not an image".utf8) }
+                    $0.imageHTTPClient = HTTPClient { _ in Data("not an image".utf8) }
                 } operation: {
                     try await client.image(url)
                 }
             }
 
             #expect(Self.fileCount(in: dir) == 0)
+        }
+
+        /// Review D3: image fetches must go through the headerless `\.imageHTTPClient`, never the
+        /// API-keyed `\.httpClient` — otherwise the CoinGecko key rides along to third-party image
+        /// hosts named by unvalidated `CoinModel.image` values.
+        @Test func imageFetchNeverUsesTheAPIKeyedClient() async throws {
+            let dir = Self.makeTempDirectory()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let url = try #require(URL(string: "https://coin-images.example/key/large.png"))
+            let png = Self.makePNG()
+            let apiClientCalls = LockIsolated(0)
+
+            let image = try await withDependencies {
+                $0.httpClient = HTTPClient { _ in
+                    apiClientCalls.withValue { $0 += 1 }
+                    return png
+                }
+                $0.imageHTTPClient = HTTPClient { _ in png }
+            } operation: {
+                try await ImageCacheClient.live(cacheDirectory: dir, maxBytes: 50_000).image(url)
+            }
+
+            #expect(image.size.width > 0)
+            #expect(apiClientCalls.value == 0)
+        }
+
+        /// Review D2: an icon larger than `maxIconPixelSize` is decoded down to it, so the
+        /// never-evicted `HomeFeature.State.images` dictionary cannot accumulate full-resolution
+        /// bitmaps for a 30pt slot. The bytes on disk are unaffected — only the decode is capped.
+        @Test func oversizedImageIsDownsampledOnDecode() async throws {
+            let dir = Self.makeTempDirectory()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let url = try #require(URL(string: "https://coin-images.example/big/large.png"))
+            let png = Self.makePNG(side: 400)
+
+            let image = try await withDependencies {
+                $0.imageHTTPClient = HTTPClient { _ in png }
+            } operation: {
+                try await ImageCacheClient.live(cacheDirectory: dir, maxBytes: 5_000_000).image(url)
+            }
+
+            let longestEdge = max(image.size.width, image.size.height)
+            #expect(longestEdge > 0)
+            #expect(longestEdge <= CGFloat(ImageCacheClient.maxIconPixelSize))
         }
     }
 }

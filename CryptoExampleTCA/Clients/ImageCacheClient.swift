@@ -1,6 +1,7 @@
 import CryptoKit
 import Dependencies
 import Foundation
+import ImageIO
 import UIKit
 
 // MARK: - Error
@@ -28,22 +29,54 @@ extension ImageCacheClient {
         let cache = ImageDiskCache(directory: cacheDirectory, maxBytes: maxBytes)
         return ImageCacheClient(
             image: { url in
-                // `httpClient` is resolved at call time so tests can override it via
-                // `withDependencies { $0.httpClient = ... }`. The disk-hit check and
-                // concurrent-request coalescing both live inside the actor (see `data(for:fetch:)`).
-                @Dependency(\.httpClient) var httpClient
+                // `imageHTTPClient` — NOT `httpClient` — is resolved at call time. It is a separate
+                // registration precisely so the CoinGecko API key injected into `\.httpClient` at
+                // launch never reaches the image CDN, or whatever host an untrusted `CoinModel.image`
+                // names. Tests override it via `withDependencies { $0.imageHTTPClient = ... }`. The
+                // disk-hit check and request coalescing live inside the actor (see `data(for:fetch:)`).
+                @Dependency(\.imageHTTPClient) var imageHTTPClient
                 let data = try await cache.data(for: url) {
-                    try await httpClient.execute(URLRequest(url: url)) // AC3
+                    try await imageHTTPClient.execute(URLRequest(url: url)) // AC3
                 }
-                // The actor only returns bytes it has already validated as decodable, so this
-                // guard is belt-and-suspenders; a genuine decode failure throws inside the actor.
-                guard let image = UIImage(data: data) else {
+                // The actor only returns bytes it has already validated as decodable, so a `nil`
+                // here means the downsampling decode itself failed.
+                guard let image = downsampledImage(from: data) else {
                     throw ImageCacheError.decodingFailed // AC5
                 }
                 return image
             },
             clearCache: { await cache.clear() }
         )
+    }
+
+    /// Coin icons arrive from CoinGecko at ~200×200 but render in a 30pt slot. Decoding at full
+    /// size parks ~160 KB of RGBA per coin in `HomeFeature.State.images`, which is never evicted —
+    /// ~40 MB across 250 coins. Decoding through a thumbnail caps every entry at
+    /// `maxIconPixelSize` instead. The 50 MB `maxBytes` limit bounds *disk* bytes only; this is the
+    /// in-memory counterpart.
+    static let maxIconPixelSize = 120 // 30pt slot at 3× is 90px; 120 leaves headroom.
+
+    /// Decodes `data` at no more than `maxIconPixelSize` on its longest edge. Images already at or
+    /// below that size pass through unscaled. Falls back to a full-size decode if the source cannot
+    /// produce a thumbnail, so a valid-but-unusual image is still displayed rather than dropped.
+    private static func downsampledImage(from data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return UIImage(data: data)
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxIconPixelSize
+        ]
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            options as CFDictionary
+        ) else {
+            return UIImage(data: data)
+        }
+        return UIImage(cgImage: thumbnail)
     }
 }
 

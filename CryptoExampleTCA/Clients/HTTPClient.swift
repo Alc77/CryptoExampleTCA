@@ -6,6 +6,11 @@ struct HTTPClient {
 }
 
 extension HTTPClient {
+    /// Headerless transport for coin-image downloads. `CoinModel.image` is unvalidated wire data,
+    /// so the host it names is untrusted — the CoinGecko API key must never ride along. Registered
+    /// under `\.imageHTTPClient`, which the app entry point deliberately leaves un-keyed.
+    static var imageTransport: HTTPClient { .live(apiKey: "") }
+
     /// Factory used by app entry point to inject the API key at launch.
     /// Never hardcode the key in source — always pass it from Bundle at runtime.
     static func live(apiKey: String) -> HTTPClient {
@@ -56,10 +61,23 @@ extension HTTPClient: DependencyKey {
     nonisolated(unsafe) static var previewValue: HTTPClient = HTTPClient { _ in Data() }
 }
 
+/// Separate registration for the image transport so the API key injected into `\.httpClient` at
+/// launch cannot leak to the image CDN. Distinct key, distinct default — no override at launch.
+enum ImageHTTPClientKey: DependencyKey {
+    nonisolated(unsafe) static var liveValue: HTTPClient = .imageTransport
+    nonisolated(unsafe) static var testValue: HTTPClient = HTTPClient { _ in Data() }
+    nonisolated(unsafe) static var previewValue: HTTPClient = HTTPClient { _ in Data() }
+}
+
 extension DependencyValues {
     var httpClient: HTTPClient {
         get { self[HTTPClient.self] }
         set { self[HTTPClient.self] = newValue }
+    }
+
+    var imageHTTPClient: HTTPClient {
+        get { self[ImageHTTPClientKey.self] }
+        set { self[ImageHTTPClientKey.self] = newValue }
     }
 }
 

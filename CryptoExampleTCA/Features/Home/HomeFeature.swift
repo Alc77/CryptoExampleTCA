@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import SwiftUI
+import UIKit
 
 @Reducer
 struct HomeFeature {
@@ -28,6 +29,7 @@ struct HomeFeature {
         var sortOption: SortOption = .rank
         var sortAscending: Bool = true
         var selectedTab: Tab = .livePrices
+        var images: [URL: UIImage] = [:]
         @Shared(.portfolioItems) var portfolioItems: [PortfolioItem] = []
 
         var filteredCoins: [CoinModel] {
@@ -131,6 +133,8 @@ struct HomeFeature {
         case coinTapped(CoinModel)
         case portfolioButtonTapped
         case tabSelected(Tab)
+        case loadImage(URL)
+        case imageLoaded(url: URL, result: TaskResult<UIImage>)
     }
 
     private enum FetchID { case fetch }
@@ -139,6 +143,7 @@ struct HomeFeature {
     @Dependency(\.coinGeckoClient) var coinGeckoClient
     @Dependency(\.hapticClient) var hapticClient
     @Dependency(\.continuousClock) var clock
+    @Dependency(\.imageCache) var imageCache
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -229,6 +234,28 @@ struct HomeFeature {
                 state.selectedTab = tab
                 state.destination = nil
                 return .none
+
+            case let .loadImage(url):
+                // `coin.image` is unvalidated wire data. `URL(string:)` parses a *relative* string
+                // — CoinGecko serves "missing_large.png" for coins with no artwork — into a
+                // scheme-less URL that `URLSession` can only ever reject. Since a failure is not
+                // recorded anywhere (AC6), such a URL would otherwise re-fetch on every `onAppear`
+                // for the life of the app. Drop it here instead.
+                guard url.scheme == "https" || url.scheme == "http" else { return .none }
+                guard state.images[url] == nil else { return .none }
+                return .run { send in
+                    await send(.imageLoaded(
+                        url: url,
+                        result: TaskResult { try await imageCache.image(url) }
+                    ))
+                }
+
+            case let .imageLoaded(url, .success(image)):
+                state.images[url] = image
+                return .none
+
+            case .imageLoaded(_, .failure):
+                return .none
             }
         }
         .ifLet(\.$destination, action: \.destination)
@@ -301,13 +328,19 @@ struct HomeView: View {
                         Spacer()
                     } else {
                         List(store.filteredCoins) { coin in
+                            let url = URL(string: coin.image)
                             Button {
                                 store.send(.coinTapped(coin))
                             } label: {
-                                CoinRowView(coin: coin)
+                                CoinRowView(coin: coin, image: url.flatMap { store.images[$0] })
                             }
                             .buttonStyle(.plain)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .onAppear {
+                                if let url {
+                                    store.send(.loadImage(url))
+                                }
+                            }
                         }
                         .listStyle(.plain)
                     }
