@@ -30,6 +30,11 @@ struct HomeFeature {
         var sortAscending: Bool = true
         var selectedTab: Tab = .livePrices
         var images: [URL: UIImage] = [:]
+        var failedImageURLs: Set<URL> = []
+        /// URLs with a load effect currently in flight. Keeps the three icon states mutually
+        /// exclusive: a slot showing a spinner always has a real request behind it, and a
+        /// repeated `.onAppear` for a URL already loading is dropped instead of re-fetching.
+        var loadingImageURLs: Set<URL> = []
         @Shared(.portfolioItems) var portfolioItems: [PortfolioItem] = []
 
         var filteredCoins: [CoinModel] {
@@ -139,6 +144,21 @@ struct HomeFeature {
 
     private enum FetchID { case fetch }
     private enum SearchDebounceID { case debounce }
+    /// One cancellation id per icon, so a reload can supersede the loads it is retrying
+    /// instead of letting their stale results land afterwards.
+    private struct ImageLoadID: Hashable { let url: URL }
+
+    /// `coin.image` is unvalidated wire data. `URL(string:)` parses a *relative* string —
+    /// CoinGecko serves "missing_large.png" for coins with no artwork — into a scheme-less
+    /// URL that `URLSession` can only ever reject. The reducer refuses to fetch it and the
+    /// view renders the unavailable fallback rather than a spinner that never stops.
+    ///
+    /// Schemes are case-insensitive per RFC 3986 and Foundation's normalization varies by
+    /// parser, so compare lowercased — `HTTPS://…` names a perfectly fetchable icon.
+    static func isLoadableImageURL(_ url: URL) -> Bool {
+        let scheme = url.scheme?.lowercased()
+        return scheme == "https" || scheme == "http"
+    }
 
     @Dependency(\.coinGeckoClient) var coinGeckoClient
     @Dependency(\.hapticClient) var hapticClient
@@ -170,15 +190,30 @@ struct HomeFeature {
                 hapticClient.impact()
                 state.isLoading = true
                 state.error = nil
-                return .run { send in
-                    await send(.coinsFetched(
-                        TaskResult { try await coinGeckoClient.fetchCoins() }
-                    ))
-                    await send(.marketDataFetched(
-                        TaskResult { try await coinGeckoClient.fetchMarketData() }
-                    ))
-                }
-                .cancellable(id: FetchID.fetch, cancelInFlight: true)
+                // AC8 — retry path for failed icons. Clearing the set alone is not enough:
+                // `.onAppear` fires on row identity, which a refresh does not change, so a row
+                // already on screen would sit on a spinner with no request behind it. Re-dispatch
+                // the loads here, and supersede any in-flight ones so their stale results cannot
+                // re-mark a URL the user just asked us to retry.
+                let retryImageURLs = state.failedImageURLs.union(state.loadingImageURLs)
+                let supersededImageLoads = state.loadingImageURLs.map { ImageLoadID(url: $0) }
+                state.failedImageURLs.removeAll()
+                state.loadingImageURLs.removeAll()
+                return .merge(
+                    .merge(supersededImageLoads.map { .cancel(id: $0) }),
+                    .run { send in
+                        for url in retryImageURLs {
+                            await send(.loadImage(url))
+                        }
+                        await send(.coinsFetched(
+                            TaskResult { try await coinGeckoClient.fetchCoins() }
+                        ))
+                        await send(.marketDataFetched(
+                            TaskResult { try await coinGeckoClient.fetchMarketData() }
+                        ))
+                    }
+                    .cancellable(id: FetchID.fetch, cancelInFlight: true)
+                )
 
             case let .coinsFetched(.success(coins)):
                 state.coins = coins
@@ -236,25 +271,29 @@ struct HomeFeature {
                 return .none
 
             case let .loadImage(url):
-                // `coin.image` is unvalidated wire data. `URL(string:)` parses a *relative* string
-                // — CoinGecko serves "missing_large.png" for coins with no artwork — into a
-                // scheme-less URL that `URLSession` can only ever reject. Since a failure is not
-                // recorded anywhere (AC6), such a URL would otherwise re-fetch on every `onAppear`
-                // for the life of the app. Drop it here instead.
-                guard url.scheme == "https" || url.scheme == "http" else { return .none }
+                guard Self.isLoadableImageURL(url) else { return .none }
                 guard state.images[url] == nil else { return .none }
+                guard !state.failedImageURLs.contains(url) else { return .none }   // AC7
+                // A row can re-appear (scroll, tab switch, re-sort) long before its first load
+                // resolves; without this the same icon is fetched and decoded once per appearance.
+                guard state.loadingImageURLs.insert(url).inserted else { return .none }
                 return .run { send in
                     await send(.imageLoaded(
                         url: url,
                         result: TaskResult { try await imageCache.image(url) }
                     ))
                 }
+                .cancellable(id: ImageLoadID(url: url), cancelInFlight: true)
 
             case let .imageLoaded(url, .success(image)):
+                state.loadingImageURLs.remove(url)
+                state.failedImageURLs.remove(url)
                 state.images[url] = image
                 return .none
 
-            case .imageLoaded(_, .failure):
+            case let .imageLoaded(url, .failure):
+                state.loadingImageURLs.remove(url)
+                state.failedImageURLs.insert(url)          // AC6 — terminal, not infinite
                 return .none
             }
         }
@@ -328,17 +367,23 @@ struct HomeView: View {
                         Spacer()
                     } else {
                         List(store.filteredCoins) { coin in
-                            let url = URL(string: coin.image)
+                            let loadableURL = URL(string: coin.image).flatMap {
+                                HomeFeature.isLoadableImageURL($0) ? $0 : nil
+                            }
                             Button {
                                 store.send(.coinTapped(coin))
                             } label: {
-                                CoinRowView(coin: coin, image: url.flatMap { store.images[$0] })
+                                CoinRowView(
+                                    coin: coin,
+                                    image: loadableURL.flatMap { store.images[$0] },
+                                    isImageUnavailable: loadableURL.map { store.failedImageURLs.contains($0) } ?? true
+                                )
                             }
                             .buttonStyle(.plain)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .onAppear {
-                                if let url {
-                                    store.send(.loadImage(url))
+                                if let loadableURL {
+                                    store.send(.loadImage(loadableURL))
                                 }
                             }
                         }
