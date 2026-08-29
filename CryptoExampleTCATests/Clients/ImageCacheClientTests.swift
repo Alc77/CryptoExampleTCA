@@ -44,9 +44,36 @@ extension BaseSuite {
             ).count) ?? 0
         }
 
+        /// Forces every cached file to a fixed modification date so eviction ordering is
+        /// deterministic without relying on wall-clock timing between writes.
+        private static func setModificationDate(_ date: Date, forFilesIn directory: URL) {
+            guard let files = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ) else { return }
+            for file in files {
+                try? FileManager.default.setAttributes(
+                    [.modificationDate: date],
+                    ofItemAtPath: file.path
+                )
+            }
+        }
+
+        /// Overwrites every cached file with bytes that do not decode to a `UIImage`.
+        private static func corruptFiles(in directory: URL) {
+            guard let files = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ) else { return }
+            for file in files {
+                try? Data("not an image".utf8).write(to: file)
+            }
+        }
+
         // MARK: Tests
 
-        /// AC3: a cache miss fetches the bytes via `httpClient`, decodes them, and writes to disk.
+        /// AC3: a cache miss fetches the bytes via `httpClient`, decodes them, and writes to disk —
+        /// and the bytes written round-trip exactly to what was fetched.
         @Test func cacheMissFetchesAndWrites() async throws {
             let dir = Self.makeTempDirectory()
             defer { try? FileManager.default.removeItem(at: dir) }
@@ -61,6 +88,15 @@ extension BaseSuite {
 
             #expect(image.size.width > 0)
             #expect(Self.fileCount(in: dir) == 1)
+
+            // The stored bytes must be exactly the fetched bytes (not garbage that merely lands a file).
+            let storedFile = try #require(
+                try FileManager.default.contentsOfDirectory(
+                    at: dir,
+                    includingPropertiesForKeys: nil
+                ).first
+            )
+            #expect(try Data(contentsOf: storedFile) == png)
         }
 
         /// AC2: with the image already on disk, `image(url:)` returns it without any network request.
@@ -93,6 +129,34 @@ extension BaseSuite {
             #expect(callCount.value == 0)
         }
 
+        /// P1: two concurrent requests for the same uncached URL coalesce into a single network fetch.
+        @Test func concurrentSameURLRequestsCoalesceToOneFetch() async throws {
+            let dir = Self.makeTempDirectory()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let url = try #require(URL(string: "https://coin-images.example/sol/large.png"))
+            let png = Self.makePNG()
+            let client = ImageCacheClient.live(cacheDirectory: dir, maxBytes: 50_000)
+            let callCount = LockIsolated(0)
+
+            try await withDependencies {
+                $0.httpClient = HTTPClient { _ in
+                    callCount.withValue { $0 += 1 }
+                    // Hold the fetch open so both requests are genuinely in flight together.
+                    try await Task.sleep(for: .milliseconds(30))
+                    return png
+                }
+            } operation: {
+                async let first = client.image(url)
+                async let second = client.image(url)
+                let (imageA, imageB) = try await (first, second)
+                #expect(imageA.size.width > 0)
+                #expect(imageB.size.width > 0)
+            }
+
+            #expect(callCount.value == 1)
+            #expect(Self.fileCount(in: dir) == 1)
+        }
+
         /// AC4 (NFR8): writing past the size limit evicts oldest-first back under the limit.
         @Test func evictionKeepsUnderLimit() async throws {
             let dir = Self.makeTempDirectory()
@@ -110,8 +174,8 @@ extension BaseSuite {
             } operation: {
                 try await client.image(oldURL)
             }
-            // Ensure the newer file has a strictly later modification date.
-            try await Task.sleep(for: .milliseconds(20))
+            // Force the first entry strictly older — deterministic, no wall-clock sleep.
+            Self.setModificationDate(.distantPast, forFilesIn: dir)
             _ = try await withDependencies {
                 $0.httpClient = HTTPClient { _ in png }
             } operation: {
@@ -133,6 +197,91 @@ extension BaseSuite {
                 try await client.image(newURL)
             }
             #expect(callCount.value == 0)
+        }
+
+        /// P2: an item larger than the whole limit is NOT self-evicted — the just-written entry is
+        /// protected, so it persists and serves a subsequent cache hit instead of vanishing.
+        @Test func itemLargerThanLimitIsNotSelfEvicted() async throws {
+            let dir = Self.makeTempDirectory()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let url = try #require(URL(string: "https://coin-images.example/big/large.png"))
+            let png = Self.makePNG()
+            // A limit deliberately smaller than a single image.
+            let client = ImageCacheClient.live(cacheDirectory: dir, maxBytes: png.count / 2)
+
+            _ = try await withDependencies {
+                $0.httpClient = HTTPClient { _ in png }
+            } operation: {
+                try await client.image(url)
+            }
+
+            #expect(Self.fileCount(in: dir) == 1)
+
+            // It persisted → the next request is a cache hit with no network call.
+            let callCount = LockIsolated(0)
+            _ = try await withDependencies {
+                $0.httpClient = HTTPClient { _ in
+                    callCount.withValue { $0 += 1 }
+                    return png
+                }
+            } operation: {
+                try await client.image(url)
+            }
+            #expect(callCount.value == 0)
+        }
+
+        /// P6: a cached file whose bytes no longer decode falls through to the network and self-heals.
+        @Test func corruptCachedFileTriggersRefetch() async throws {
+            let dir = Self.makeTempDirectory()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let url = try #require(URL(string: "https://coin-images.example/corrupt/large.png"))
+            let png = Self.makePNG()
+            let client = ImageCacheClient.live(cacheDirectory: dir, maxBytes: 50_000)
+
+            // Seed a valid cache entry, then corrupt the bytes on disk.
+            _ = try await withDependencies {
+                $0.httpClient = HTTPClient { _ in png }
+            } operation: {
+                try await client.image(url)
+            }
+            Self.corruptFiles(in: dir)
+
+            // Undecodable disk bytes → refetch exactly once, then decode succeeds.
+            let callCount = LockIsolated(0)
+            let image = try await withDependencies {
+                $0.httpClient = HTTPClient { _ in
+                    callCount.withValue { $0 += 1 }
+                    return png
+                }
+            } operation: {
+                try await client.image(url)
+            }
+
+            #expect(image.size.width > 0)
+            #expect(callCount.value == 1)
+        }
+
+        /// P5: `clearCache` removes every file in the cache directory.
+        @Test func clearCacheRemovesAllFiles() async throws {
+            let dir = Self.makeTempDirectory()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let png = Self.makePNG()
+            let client = ImageCacheClient.live(cacheDirectory: dir, maxBytes: 50_000)
+
+            let first = try #require(URL(string: "https://coin-images.example/a/large.png"))
+            let second = try #require(URL(string: "https://coin-images.example/b/large.png"))
+            for url in [first, second] {
+                _ = try await withDependencies {
+                    $0.httpClient = HTTPClient { _ in png }
+                } operation: {
+                    try await client.image(url)
+                }
+            }
+            #expect(Self.fileCount(in: dir) == 2)
+
+            await client.clearCache()
+
+            #expect(Self.fileCount(in: dir) == 0)
         }
 
         /// AC5: undecodable bytes throw `decodingFailed` and write nothing to disk.

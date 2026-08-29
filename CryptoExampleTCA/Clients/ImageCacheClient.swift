@@ -28,19 +28,18 @@ extension ImageCacheClient {
         let cache = ImageDiskCache(directory: cacheDirectory, maxBytes: maxBytes)
         return ImageCacheClient(
             image: { url in
-                // AC2: disk hit → return without any network request.
-                if let data = await cache.cachedData(for: url),
-                   let image = UIImage(data: data) {
-                    return image
-                }
-                // AC3: miss → fetch bytes via httpClient, resolved at call time so tests
-                // can override it via `withDependencies { $0.httpClient = ... }`.
+                // `httpClient` is resolved at call time so tests can override it via
+                // `withDependencies { $0.httpClient = ... }`. The disk-hit check and
+                // concurrent-request coalescing both live inside the actor (see `data(for:fetch:)`).
                 @Dependency(\.httpClient) var httpClient
-                let data = try await httpClient.execute(URLRequest(url: url))
-                guard let image = UIImage(data: data) else {
-                    throw ImageCacheError.decodingFailed // AC5: decode fails → nothing written
+                let data = try await cache.data(for: url) {
+                    try await httpClient.execute(URLRequest(url: url)) // AC3
                 }
-                await cache.store(data: data, for: url) // AC3 write + AC4 eviction
+                // The actor only returns bytes it has already validated as decodable, so this
+                // guard is belt-and-suspenders; a genuine decode failure throws inside the actor.
+                guard let image = UIImage(data: data) else {
+                    throw ImageCacheError.decodingFailed // AC5
+                }
                 return image
             },
             clearCache: { await cache.clear() }
@@ -50,38 +49,55 @@ extension ImageCacheClient {
 
 // MARK: - Disk Cache Engine
 
-/// Owns all `FileManager` I/O for the image cache. Stores/returns `Data` only — decoding to
-/// the non-`Sendable` `UIImage` happens in the `image` closure, keeping the actor boundary clean
-/// under Swift 6 strict concurrency.
+/// Owns all `FileManager` I/O for the image cache plus in-flight request coalescing. Stores and
+/// returns `Data` only — decoding to the non-`Sendable` `UIImage` happens in the `image` closure,
+/// keeping the actor boundary clean under Swift 6 strict concurrency.
 private actor ImageDiskCache {
     let directory: URL
     let maxBytes: Int
 
+    /// Loads in progress, keyed by URL, so concurrent requests for the same URL share one network
+    /// fetch instead of each hitting the network and each writing the same file.
+    private var inFlight: [URL: Task<Data, Error>] = [:]
+
     init(directory: URL, maxBytes: Int) {
         self.directory = directory
         self.maxBytes = maxBytes
+        // Inlined rather than calling `ensureDirectoryExists()`: an actor's synchronous init runs in
+        // a nonisolated context and cannot call isolated instance methods.
         try? FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true
         )
     }
 
-    /// Returns cached bytes for `url` if present, else `nil`. On a hit, touches the file's
-    /// modification date so eviction is access-ordered (LRU-ish, oldest-accessed first).
-    func cachedData(for url: URL) -> Data? {
-        let file = fileURL(for: url)
-        guard let data = try? Data(contentsOf: file) else { return nil }
-        try? FileManager.default.setAttributes(
-            [.modificationDate: Date()],
-            ofItemAtPath: file.path
-        )
-        return data
-    }
-
-    /// Writes bytes to disk then evicts oldest entries until back under the size limit.
-    func store(data: Data, for url: URL) {
-        try? data.write(to: fileURL(for: url))
-        evict()
+    /// Returns the bytes for `url`, in priority order: on-disk cache hit (no network), an already
+    /// in-flight fetch for the same URL (coalesced), or a fresh fetch via `fetch`. A fresh fetch is
+    /// validated as decodable before it is written, so undecodable bytes throw and store nothing.
+    func data(for url: URL, fetch: @Sendable @escaping () async throws -> Data) async throws -> Data {
+        // AC2: disk hit → return without any network request. Bytes that no longer decode (a
+        // truncated/corrupt file, e.g. from a mid-write kill) are treated as a miss so the fetch
+        // path below refetches and overwrites them — the cache self-heals.
+        if let cached = cachedData(for: url), UIImage(data: cached) != nil {
+            return cached
+        }
+        // Coalesce concurrent requests for the same uncached URL onto a single fetch.
+        if let existing = inFlight[url] {
+            return try await existing.value
+        }
+        let task = Task<Data, Error> {
+            let data = try await fetch()
+            guard UIImage(data: data) != nil else {
+                throw ImageCacheError.decodingFailed // AC5: decode fails → nothing written
+            }
+            store(data: data, for: url) // AC3 write + AC4 eviction
+            return data
+        }
+        inFlight[url] = task
+        // A subsequent request for the same URL either finds this task above, or (once it completes)
+        // finds the bytes on disk via `cachedData`, so clearing the slot here cannot orphan a fetch.
+        defer { inFlight[url] = nil }
+        return try await task.value
     }
 
     /// Removes every file in the cache directory.
@@ -98,6 +114,37 @@ private actor ImageDiskCache {
 
     // MARK: Private
 
+    /// Returns cached bytes for `url` if present, else `nil`. On a hit, touches the file's
+    /// modification date so eviction is access-ordered (LRU-ish, oldest-accessed first).
+    private func cachedData(for url: URL) -> Data? {
+        let file = fileURL(for: url)
+        guard let data = try? Data(contentsOf: file) else { return nil }
+        try? FileManager.default.setAttributes(
+            [.modificationDate: Date()],
+            ofItemAtPath: file.path
+        )
+        return data
+    }
+
+    /// Writes bytes to disk then evicts oldest entries until back under the size limit. The
+    /// just-written entry is protected from eviction so a fresh fetch is never immediately deleted
+    /// (matters when a single item is larger than `maxBytes`).
+    private func store(data: Data, for url: URL) {
+        ensureDirectoryExists() // the OS can purge `.cachesDirectory` between writes
+        let file = fileURL(for: url)
+        try? data.write(to: file)
+        evict(protecting: file)
+    }
+
+    /// Creates the cache directory if it does not currently exist. Cheap and idempotent; called
+    /// before every write because iOS may reclaim `.cachesDirectory` at any time.
+    private func ensureDirectoryExists() {
+        try? FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+    }
+
     /// Derives a stable, collision-free filename by hashing the absolute URL string.
     /// `lastPathComponent` is unsafe here — many CoinGecko image URLs end in `large.png`.
     private func fileURL(for url: URL) -> URL {
@@ -106,8 +153,9 @@ private actor ImageDiskCache {
         return directory.appendingPathComponent(name)
     }
 
-    /// NFR8: enforce a maximum on-disk size, deleting oldest-first until under the limit.
-    private func evict() {
+    /// NFR8: enforce a maximum on-disk size, deleting oldest-first until under the limit. `protected`
+    /// is never deleted (the entry just written by `store`).
+    private func evict(protecting protected: URL? = nil) {
         let fileManager = FileManager.default
         let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey]
         guard let files = try? fileManager.contentsOfDirectory(
@@ -126,7 +174,16 @@ private actor ImageDiskCache {
         }
 
         guard total > maxBytes else { return }
-        for entry in entries.sorted(by: { $0.modified < $1.modified }) {
+        let candidates = entries
+            .filter { $0.url != protected }
+            .sorted { lhs, rhs in
+                // Oldest-first; break ties on the filename so eviction order is deterministic even
+                // when two files share a (coarse-granularity) modification date.
+                lhs.modified == rhs.modified
+                    ? lhs.url.absoluteString < rhs.url.absoluteString
+                    : lhs.modified < rhs.modified
+            }
+        for entry in candidates {
             if total <= maxBytes { break }
             try? fileManager.removeItem(at: entry.url)
             total -= entry.size
