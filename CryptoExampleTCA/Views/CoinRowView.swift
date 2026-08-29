@@ -4,6 +4,7 @@ import UIKit
 struct CoinRowView: View {
     let coin: CoinModel
     let image: UIImage?
+    let isImageUnavailable: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -14,18 +15,9 @@ struct CoinRowView: View {
                 .frame(minWidth: 30, alignment: .center)
 
             // Icon slot — fixed 30×30 so rows never reflow when an image lands (NFR1).
-            // Story 5.3 swaps the `Color.clear` branch for CoinImageView's ProgressView.
-            Group {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(width: 30, height: 30)
-            .padding(.leading, 4)
+            CoinImageView(image: image, isUnavailable: isImageUnavailable)
+                .frame(width: 30, height: 30)
+                .padding(.leading, 4)
 
             // Coin info
             VStack(alignment: .leading, spacing: 4) {
