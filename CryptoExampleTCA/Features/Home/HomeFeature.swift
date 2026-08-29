@@ -236,6 +236,12 @@ struct HomeFeature {
                 return .none
 
             case let .loadImage(url):
+                // `coin.image` is unvalidated wire data. `URL(string:)` parses a *relative* string
+                // — CoinGecko serves "missing_large.png" for coins with no artwork — into a
+                // scheme-less URL that `URLSession` can only ever reject. Since a failure is not
+                // recorded anywhere (AC6), such a URL would otherwise re-fetch on every `onAppear`
+                // for the life of the app. Drop it here instead.
+                guard url.scheme == "https" || url.scheme == "http" else { return .none }
                 guard state.images[url] == nil else { return .none }
                 return .run { send in
                     await send(.imageLoaded(
