@@ -100,5 +100,74 @@ extension BaseSuite {
 
             await store.send(.portfolioButtonTapped)
         }
+
+        // MARK: - AC1/AC6: infoButtonTapped presents settings destination
+
+        @Test func infoButtonTappedPresentsSettingsDestination() async {
+            let store = TestStore(initialState: HomeFeature.State()) {
+                HomeFeature()
+            }
+
+            await store.send(.infoButtonTapped) {
+                $0.destination = .settings(SettingsFeature.State())
+            }
+        }
+
+        // MARK: - AC2/AC7: dismiss clears settings destination
+
+        @Test func dismissDestinationClearsSettings() async {
+            var initial = HomeFeature.State()
+            initial.destination = .settings(SettingsFeature.State())
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            await store.send(.destination(.dismiss)) {
+                $0.destination = nil
+            }
+        }
+
+        // MARK: - AC4/AC8: infoButtonTapped is ignored when settings already presented
+
+        @Test func infoButtonTappedIsIgnoredWhenSettingsAlreadyPresented() async {
+            var initial = HomeFeature.State()
+            initial.destination = .settings(SettingsFeature.State())
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            await store.send(.infoButtonTapped)
+        }
+
+        // MARK: - AC4: the rapid-tap guard is destination-case-agnostic
+
+        @Test func infoButtonTappedIsIgnoredWhenPortfolioAlreadyPresented() async {
+            var initial = HomeFeature.State()
+            initial.destination = .portfolio(PortfolioFeature.State(coins: []))
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            await store.send(.infoButtonTapped)
+        }
+
+        // MARK: - AC2/AC5: the child's dismiss effect clears the parent destination
+
+        @Test func settingsDismissButtonTappedClearsDestination() async {
+            var initial = HomeFeature.State()
+            initial.destination = .settings(SettingsFeature.State())
+
+            let store = TestStore(initialState: initial) {
+                HomeFeature()
+            }
+
+            await store.send(.destination(.presented(.settings(.dismissButtonTapped))))
+            await store.receive(\.destination.dismiss) {
+                $0.destination = nil
+            }
+        }
     }
 }
