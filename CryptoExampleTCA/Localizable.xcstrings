@@ -229,6 +229,83 @@
         }
       }
     },
+    "settings.app.description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CryptoExampleTCA is a live cryptocurrency market tracker built with SwiftUI and The Composable Architecture. It is a reference port of an MVVM + Combine original."
+          }
+        }
+      }
+    },
+    "settings.app.logo.accessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CryptoExampleTCA app logo"
+          }
+        }
+      }
+    },
+    "settings.coingecko.attribution" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Market data is provided by the free CoinGecko API. Prices may be slightly delayed."
+          }
+        }
+      }
+    },
+    "settings.coingecko.link" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visit CoinGecko"
+          }
+        }
+      }
+    },
+    "settings.coingecko.logo.accessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CoinGecko logo"
+          }
+        }
+      }
+    },
+    "settings.developer.attribution" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Designed and built by Alex as a TCA learning project."
+          }
+        }
+      }
+    },
+    "settings.developer.link" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View on GitHub"
+          }
+        }
+      }
+    },
     "settings.dismiss" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -240,13 +317,35 @@
         }
       }
     },
-    "settings.placeholder" : {
+    "settings.section.app" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App information coming soon"
+            "value" : "About This App"
+          }
+        }
+      }
+    },
+    "settings.section.coingecko" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CoinGecko"
+          }
+        }
+      }
+    },
+    "settings.section.developer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Developer"
           }
         }
       }
