@@ -137,6 +137,7 @@ struct HomeFeature {
         case sortOptionSelected(SortOption)
         case coinTapped(CoinModel)
         case portfolioButtonTapped
+        case infoButtonTapped
         case tabSelected(Tab)
         case loadImage(URL)
         case imageLoaded(url: URL, result: TaskResult<UIImage>)
@@ -263,6 +264,11 @@ struct HomeFeature {
             case .portfolioButtonTapped:
                 guard state.destination == nil else { return .none }
                 state.destination = .portfolio(PortfolioFeature.State(coins: state.coins))
+                return .none
+
+            case .infoButtonTapped:
+                guard state.destination == nil else { return .none }
+                state.destination = .settings(SettingsFeature.State())
                 return .none
 
             case let .tabSelected(tab):
@@ -406,6 +412,14 @@ struct HomeView: View {
                 }
                 .accessibilityLabel(Text("home.portfolio.openButton"))
             }
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    store.send(.infoButtonTapped)
+                } label: {
+                    Image(systemName: "info.circle")
+                }
+                .accessibilityLabel(Text("home.settings.openButton"))
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     store.send(.reloadButtonTapped)
@@ -427,6 +441,11 @@ struct HomeView: View {
             item: $store.scope(state: \.destination?.portfolio, action: \.destination.portfolio)
         ) { portfolioStore in
             PortfolioView(store: portfolioStore)
+        }
+        .sheet(
+            item: $store.scope(state: \.destination?.settings, action: \.destination.settings)
+        ) { settingsStore in
+            SettingsView(store: settingsStore)
         }
     }
 
